@@ -5,5 +5,7 @@
   :serial t
   :components ((:module "src"
                 :serial t
-                :components ((:file "packages"))))
+                :components ((:file "packages")
+                             (:file "name-mangling")
+                             (:file "name-mangling-definitions"))))
   :in-order-to ((test-op (test-op "template-function-tests"))))
