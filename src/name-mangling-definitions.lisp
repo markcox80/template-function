@@ -1,8 +1,13 @@
 (in-package "TEMPLATE-FUNCTION")
 
 (define-type-name-pairs
+  (T "*")
   (string "S")
-  (base-string "Sb" :implementation-specific t))
+  (base-string "Sb" :implementation-specific t)
+  (cons "CONS")
+  (sequence "SEQ")
+  ((eql nil) "NIL")
+  ((eql t) "T"))
 
 ;; Numbers
 (define-type-name-pairs
