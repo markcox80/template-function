@@ -1,7 +1,7 @@
 (defsystem "template-function"
   :author "Mark Cox"
   :description "A system for generating functions from a template."
-  :depends-on ("specialization-store")
+  :depends-on ("specialization-store" "introspect-environment" "alexandria")
   :serial t
   :components ((:module "src"
                 :serial t
