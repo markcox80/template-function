@@ -19,7 +19,7 @@
                  (not (subtypep b a))))
         :key key))
 
-(defun find-type-name-pair (type)
+(defun find-type-name-pair-with-type (type)
   (let* ((matches (remove-if-not #'(lambda (item)
                                      (subtypep type (type-name-pair-type item)))
                                  *type-name-pairs*)))
@@ -32,7 +32,7 @@
   (when (and valuep implementation-specific (not (subtypep (type-of value) type)))
     (return-from add-type-name-pair (values)))
 
-  (let* ((existing-pair (find-type-name-pair type))
+         (existing-pair (find-type-name-pair-with-type type))
          (type-equal (and (consp existing-pair)
                           (subtypep (type-name-pair-type existing-pair) type))))
     (unless type-equal
