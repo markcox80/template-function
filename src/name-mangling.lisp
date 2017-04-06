@@ -39,9 +39,15 @@
          (existing-pair (find-type-name-pair-with-type type))
          (type-equal (and (consp existing-pair)
                           (subtypep (type-name-pair-type existing-pair) type))))
-    (unless type-equal
-      (push (cons type name) *type-name-pairs*)))
-  (values))
+    (cond (type-equal
+           existing-pair)
+          (t
+           (let* ((new-pair (cons type name))
+                  (name-pair (find-type-name-pair-with-name name)))
+             (when name-pair
+               (error "The name ~A is also used for the type ~A." name (type-name-pair-type name-pair)))
+             (push new-pair *type-name-pairs*)
+             new-pair)))))
 
 ;;;; Defining type name pairs
 
