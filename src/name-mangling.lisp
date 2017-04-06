@@ -25,6 +25,9 @@
                                  *type-name-pairs*)))
     (first (order-types-by-decreasing-specificity matches :key #'type-name-pair-type))))
 
+(defun find-type-name-pair-with-name (name)
+  (find name *type-name-pairs* :key #'type-name-pair-name :test #'string=))
+
 (defun clear-type-name-pairs ()
   (setf *type-name-pairs* nil))
 
