@@ -35,6 +35,7 @@
   (when (and valuep implementation-specific (not (subtypep (type-of value) type)))
     (return-from add-type-name-pair (values)))
 
+  (let* ((type (introspect-environment:typexpand type))
          (existing-pair (find-type-name-pair-with-type type))
          (type-equal (and (consp existing-pair)
                           (subtypep (type-name-pair-type existing-pair) type))))
