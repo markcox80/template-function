@@ -1,4 +1,42 @@
 (defpackage "TEMPLATE-FUNCTION"
-  (:use "COMMON-LISP"))
+  (:use "COMMON-LISP")
+
+  ;; Object Layer
+  (:export "TEMPLATE-FUNCTION-CLASS"
+           "TEMPLATE-FUNCTION"
+           "NAME"
+           "LAMBDA-LIST"
+           "LAMBDA-FORM"
+           "FORM-FUNCTION-TYPE"
+           "TYPE-COMPLETION-FUNCTION"
+           "VALUE-COMPLETION-FUNCTION"
+
+           "COMPUTE-NAME"
+           "COMPUTE-NAME*"
+           "COMPUTE-LAMBDA-FORM"
+           "COMPUTE-LAMBDA-FORM*"
+           "COMPUTE-FUNCTION-TYPE"
+           "COMPUTE-FUNCTION-TYPE*"
+           "COMPLETE-ARGUMENT-TYPES"
+           "COMPLETE-ARGUMENT-TYPES*"
+
+           "FUNCALL-TEMPLATE-FUNCTION"
+           "APPLY-TEMPLATE-FUNCTION"
+           "EXPAND-TEMPLATE-FUNCTION"
+           "COMPUTE-FORM-ARGUMENT-TYPES"
+
+           "FIND-INSTANTIATION"
+           "FIND-INSTANTIATION*")
+
+  ;; Glue Layer
+  (:export "FIND-TEMPLATE-FUNCTION"
+           "ENSURE-TEMPLATE-FUNCTION"
+           "ENSURE-INSTANTIATION")
+
+  ;; Syntax Layer
+  (:export "DEFINE-TEMPLATE-USING-OBJECT"
+           "DEFINE-TEMPLATE"
+           "REQUIRE-INSTANTIATION"
+           "REQUIRE-INSTANTIATIONS"))
 
 (defpackage "TEMPLATE-FUNCTION.NAMES")
