@@ -4,7 +4,7 @@
 ;;;; Object Layer Tests
 
 (defun xpy-function-type (<x> <y> &key ((:alpha <alpha>)) ((:beta <beta>)))
-  `(function (,<x> ,<y> :alpha ,<alpha> :beta ,<beta>) (values)))
+  `(function (,<x> ,<y> &key (:alpha ,<alpha>) (:beta ,<beta>)) (values)))
 
 (defun xpy-lambda-form (<x> <y> &key ((:alpha <alpha>)) ((:beta <beta>)))
   (let* ((one (coerce 1 <alpha>))
@@ -37,7 +37,7 @@
                             :value-completion-function #'complete-xpy-values)))
     (is-true (typep tf 'template-function:template-function))
     (is (equal 'example/A_A_N_N (template-function:compute-name tf (list 'array 'array))))
-    (is (equal '(function (array array :alpha number :beta number) (values))
+    (is (equal '(function (array array &key (:alpha number) (:beta number)) (values))
                (template-function:compute-function-type tf (list 'array 'array))))
 
     (let* ((x (make-array 5 :initial-element 5))
