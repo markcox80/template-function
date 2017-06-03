@@ -448,12 +448,14 @@
 (defun %ensure-instantiations (requests)
   (labels ((process (template-function argument-types)
              (multiple-value-bind (lambda-form function-type) (compute-lambda-form template-function argument-types)
-               (let* ((name (compute-name template-function argument-types))
+               (let* ((function-type (or function-type
+                                         (compute-function-type template-function argument-types)))
+                      (name (compute-name template-function argument-types))
                       (wrapper-fn (compile nil `(lambda ()
                                                   (alexandria:named-lambda ,name ,@(rest lambda-form)))))
                       (function (funcall wrapper-fn))
                       (expand-function (specialization-store:compiler-macro-lambda (&rest args)
-                                         `(,name ,@args)))
+                                         `(the ,(third function-type) (,name ,@args))))
                       (specialization-lambda-list (make-specialization-lambda-list (parameters template-function)
                                                                                    argument-types))
                       (specialization (make-instance 'specialization-store:standard-specialization
@@ -465,6 +467,7 @@
                  (specialization-store:add-specialization (store template-function) specialization)
                  (fmakunbound name)
                  (setf (fdefinition name) function)
+                 (proclaim `(ftype ,function-type ,name))
                  (make-instantiation :template-function template-function
                                      :argument-types argument-types
                                      :name name
