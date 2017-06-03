@@ -490,6 +490,12 @@
 (defmethod ensure-instantiation ((template-function template-function) argument-types)
   (%ensure-instantiation template-function argument-types))
 
+(defmethod ensure-instantiation ((name symbol) argument-types)
+  (ensure-instantiation (find-template-function name) argument-types))
+
+(defmethod ensure-instantiation* ((name symbol) &rest argument-types)
+  (ensure-instantiation name argument-types))
+
 (defmethod ensure-instantiation* ((template-function template-function) &rest argument-types)
   (%ensure-instantiation template-function argument-types)
   (values))
