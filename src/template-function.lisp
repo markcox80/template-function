@@ -80,7 +80,7 @@
                   ((specialization-store.lambda-lists:rest-parameter-p parameters)
                    (cons (specialization-store.lambda-lists:rest-parameter parameters)
                          arguments))
-                  (t
+                  (arguments
                    (too-many-arguments))))))
 
 (defun make-specialization-lambda-list (parameters argument-types)
