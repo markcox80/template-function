@@ -23,17 +23,18 @@
 ;;;; 6. Load the file.
 ;;;; 7. Run the ALL-SANDBOX-TESTS test suite.
 
+(defparameter *sandbox-package* "TEMPLATE-FUNCTION.TESTS.SANDBOX")
+(defparameter *sandbox-package-use-list* '("COMMON-LISP" "TEMPLATE-FUNCTION" "FIVEAM"))
+
 (defun output-sandbox-header (stream)
   (let* ((*standard-output* stream))
     (format t "~c~%" #\Page)
     (format t ";;;; Automatically generated sandbox header.~%")
-    (pprint `(defpackage "TEMPLATE-FUNCTION.TESTS.SANDBOX"
-              (:use "COMMON-LISP"
-                    "TEMPLATE-FUNCTION"
-                    "FIVEAM")
+    (pprint `(defpackage ,*sandbox-package*
+              (:use ,@*sandbox-package-use-list*)
               (:export "ALL-SANDBOX-TESTS")))
     (terpri)
-    (pprint `(in-package "TEMPLATE-FUNCTION.TESTS.SANDBOX"))
+    (pprint `(in-package ,*sandbox-package*))
     (terpri)
     (format t "(fiveam:def-suite template-function.tests.sandbox:all-sandbox-tests)~%")
     (format t "(fiveam:in-suite template-function.tests.sandbox:all-sandbox-tests)~%")
@@ -49,15 +50,13 @@
 
 (defun output-sandbox-test (stream forms)
   ;; Steps 1 to 4 inclusive.
-  (let* ((package-name "TEMPLATE-FUNCTION.TESTS.SANDBOX"))
-    (ignore-errors (delete-package package-name))
-    (unwind-protect
-         (let* ((*package* (make-package package-name
-                                         :use (list "COMMON-LISP" "TEMPLATE-FUNCTION" "FIVEAM")))
-                (suite (intern "ALL-SANBBOX-TESTS")))
-           (export (list suite))
-           (output-sandbox-contents stream forms))
-      (delete-package package-name))))
+  (ignore-errors (delete-package *sandbox-package*))
+  (unwind-protect
+       (let* ((*package* (make-package *sandbox-package* :use *sandbox-package-use-list*))
+              (suite (intern "ALL-SANBBOX-TESTS")))
+         (export (list suite))
+         (output-sandbox-contents stream forms))
+    (delete-package *sandbox-package*)))
 
 (defun do-with-temporary-directory (function)
   (assert (< (char-code #\A) (char-code #\Z)))
@@ -121,8 +120,8 @@
                (format t "~%;;; Compiling and loading~%")
                (cond ((compile-and-load pathname)
                       (format t "~&~%;;; Running sandbox test.~%")
-                      (fiveam:run! (intern "ALL-SANDBOX-TESTS" (find-package "TEMPLATE-FUNCTION.TESTS.SANDBOX")))
-                      (ignore-errors (delete-package "TEMPLATE-FUNCTION.TESTS.SANDBOX")))
+                      (fiveam:run! (intern "ALL-SANDBOX-TESTS" *sandbox-package*))
+                      (ignore-errors (delete-package *sandbox-package*)))
                      (t
                       (error "Unable to compile and load sandbox test (~A ~A)." test-type test-name)))))
         (when delete-pathname-p
@@ -132,16 +131,13 @@
   (format t "~&~c~%;;;; Running sandbox tests in file: ~A~%" #\Page pathname)
   (with-open-file (in pathname)
     (loop
-      with package-name = "TEMPLATE-FUNCTION.TESTS.SANDBOX"
       with eof-value = '#:eof
       for form = (progn
-                   (ignore-errors (delete-package package-name))
-                   (let* ((package (make-package package-name
-                                                 :use '("COMMON-LISP" "TEMPLATE-FUNCTION" "FIVEAM"))))
-
+                   (ignore-errors (delete-package *sandbox-package*))
+                   (let* ((package (make-package *sandbox-package* :use *sandbox-package-use-list*)))
                      (unwind-protect (let* ((*package* package))
                                        (read in nil eof-value))
-                       (delete-package "TEMPLATE-FUNCTION.TESTS.SANDBOX"))))
+                       (delete-package *sandbox-package*))))
       until (eql form eof-value)
       do
          (cond ((and (listp form)
