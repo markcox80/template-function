@@ -433,6 +433,7 @@
                                           args))
                                   (t
                                    (apply #'make-instance
+                                          'template-function
                                           :name name
                                           :lambda-list lambda-list
                                           args)))))
