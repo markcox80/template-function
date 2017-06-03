@@ -33,7 +33,7 @@
                     "FIVEAM")
               (:export "ALL-SANDBOX-TESTS")))
     (terpri)
-    (pprint `(in-package "TEMPLATE-FUNCTION.TESTS"))
+    (pprint `(in-package "TEMPLATE-FUNCTION.TESTS.SANDBOX"))
     (terpri)
     (format t "(fiveam:def-suite template-function.tests.sandbox:all-sandbox-tests)~%")
     (format t "(fiveam:in-suite template-function.tests.sandbox:all-sandbox-tests)~%")
