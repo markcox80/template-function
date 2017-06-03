@@ -437,7 +437,10 @@
                                           :name name
                                           :lambda-list lambda-list
                                           args)))))
-    (setf (get name 'template-function) template-function)
+    (setf (get name 'template-function) template-function
+          (fdefinition name) template-function
+          (compiler-macro-function name) (lambda (form &optional environment)
+                                           (expand-template-function template-function form environment)))
     template-function))
 
 ;;;; Glue Layer (Instantiation requests)
