@@ -6,5 +6,6 @@
   :components ((:module "tests"
                 :serial t
                 :components ((:file "packages")
-                             (:file "asdf")
-                             (:file "template-function")))))
+                             (:file "template-function")
+                             (:file "sandbox")
+                             (:file "asdf")))))
