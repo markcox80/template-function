@@ -42,21 +42,11 @@
     (format t "~c~%" #\Page)
     (format t ";;;; Sandbox tests.~%")))
 
-(defun output-sandbox-contents (stream forms)
+(defun output-sandbox-test (stream forms)
   (output-sandbox-header stream)
   (let* ((*standard-output* stream))
     (dolist (form forms)
       (pprint form))))
-
-(defun output-sandbox-test (stream forms)
-  ;; Steps 1 to 4 inclusive.
-  (ignore-errors (delete-package *sandbox-package*))
-  (unwind-protect
-       (let* ((*package* (make-package *sandbox-package* :use *sandbox-package-use-list*))
-              (suite (intern "ALL-SANBBOX-TESTS")))
-         (export (list suite))
-         (output-sandbox-contents stream forms))
-    (delete-package *sandbox-package*)))
 
 (defun do-with-temporary-directory (function)
   (assert (< (char-code #\A) (char-code #\Z)))
@@ -120,31 +110,32 @@
                (format t "~%;;; Compiling and loading~%")
                (cond ((compile-and-load pathname)
                       (format t "~&~%;;; Running sandbox test.~%")
-                      (fiveam:run! (intern "ALL-SANDBOX-TESTS" *sandbox-package*))
-                      (ignore-errors (delete-package *sandbox-package*)))
+                      (fiveam:run! (intern "ALL-SANDBOX-TESTS" *sandbox-package*)))
                      (t
                       (error "Unable to compile and load sandbox test (~A ~A)." test-type test-name)))))
         (when delete-pathname-p
           (ignore-errors (delete-file pathname)))))))
 
 (defun evaluate-sandbox-tests-in-file (pathname)
-  (format t "~&~c~%;;;; Running sandbox tests in file: ~A~%" #\Page pathname)
-  (with-open-file (in pathname)
-    (loop
-      with eof-value = '#:eof
-      for form = (progn
-                   (ignore-errors (delete-package *sandbox-package*))
-                   (let* ((package (make-package *sandbox-package* :use *sandbox-package-use-list*)))
-                     (unwind-protect (let* ((*package* package))
-                                       (read in nil eof-value))
-                       (delete-package *sandbox-package*))))
-      until (eql form eof-value)
-      do
-         (cond ((and (listp form)
-                     (>= (length form) 2)
-                     (symbolp (first form))
-                     (symbolp (second form)))
-                (evaluate-sandbox-test form))
-               (t
-                (error "Encountered an invalid sandbox test form:~%~A~%." form)))))
-  (values))
+  (flet ((process (stream eof-value)
+           (ignore-errors (delete-package *sandbox-package*))
+           (let* ((*package* (make-package *sandbox-package* :use *sandbox-package-use-list*)))
+             (unwind-protect (let* ((form (read stream nil eof-value)))
+                               (cond ((eql form eof-value)
+                                      form)
+                                     ((and (listp form)
+                                           (>= (length form) 2)
+                                           (symbolp (first form))
+                                           (symbolp (second form)))
+                                      (evaluate-sandbox-test form))
+                                     (t
+                                      (error "Encountered an invalid sandbox test form:~%~A~%." form)))
+                               (unless (eql form eof-value)
+                                 ))
+               (delete-package *sandbox-package*)))))
+    (format t "~&~c~%;;;; Running sandbox tests in file: ~A~%" #\Page pathname)
+    (with-open-file (in pathname)
+      (loop
+        with eof-value = '#:eof
+        for form = (process in eof-value)
+        until (eql form eof-value)))))
