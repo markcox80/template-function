@@ -11,12 +11,16 @@
   (evaluate-sandbox-tests-in-file *glue-layer-tests-pathname*)
   (evaluate-sandbox-tests-in-file *syntax-layer-tests-pathname*))
 
-(defun evaluate-test-with-name (test-type test-name)
+(defun evaluate-test-with-name (test-type test-name &key pathname (if-exists :error))
   (labels ((predicate (type name)
              (and (string-equal test-type type)
                   (cond ((symbolp name)
                          (string-equal test-name name))
                         (t
                          (string-equal test-name (first name)))))))
-    (evaluate-sandbox-tests-in-file-if #'predicate *glue-layer-tests-pathname*)
-    (evaluate-sandbox-tests-in-file-if #'predicate *syntax-layer-tests-pathname*)))
+    (evaluate-sandbox-tests-in-file-if #'predicate *glue-layer-tests-pathname*
+                                       :code-pathname pathname
+                                       :if-code-exists if-exists)
+    (evaluate-sandbox-tests-in-file-if #'predicate *syntax-layer-tests-pathname*
+                                       :code-pathname pathname
+                                       :if-code-exists if-exists)))
