@@ -6,6 +6,7 @@
   :components ((:module "tests"
                 :serial t
                 :components ((:file "packages")
+                             (:file "lisp-implementation")
                              (:file "template-function")
                              (:file "sandbox")
                              (:file "asdf")))))
