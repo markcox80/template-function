@@ -31,7 +31,8 @@
   ;; Glue Layer
   (:export "FIND-TEMPLATE-FUNCTION"
            "ENSURE-TEMPLATE-FUNCTION"
-           "ENSURE-INSTANTIATION")
+           "ENSURE-INSTANTIATION"
+           "ENSURE-INSTANTIATION*")
 
   ;; Syntax Layer
   (:export "DEFINE-TEMPLATE-USING-OBJECT"
