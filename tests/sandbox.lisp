@@ -43,11 +43,16 @@
     (format t ";;;; Sandbox tests.~%")))
 
 (defun output-sandbox-test (stream forms)
-  (with-standard-io-syntax
-    (output-sandbox-header stream)
-    (let* ((*standard-output* stream))
-      (dolist (form forms)
-        (pprint form)))))
+  (let* ((print-case *print-case*)
+         (package *package*))
+    (with-standard-io-syntax
+      (let* ((*print-case* print-case)
+             (*package* package))
+        (output-sandbox-header stream)
+        (let* ((*standard-output* stream))
+          (dolist (form forms)
+            (pprint form)
+            (terpri)))))))
 
 (defun do-with-temporary-directory (function)
   (assert (< (char-code #\A) (char-code #\Z)))
