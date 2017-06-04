@@ -398,7 +398,7 @@
 
 (defmethod compute-form-argument-types ((template-function template-function) form &optional environment)
   (let* ((form-types-fn (slot-value (store template-function) 'specialization-store.standard-store::form-types-function))
-         (type-completion-fn (specialization-store:store-type-completion-function template-function))
+         (type-completion-fn (specialization-store:store-type-completion-function (store template-function)))
          (fn (funcall form-types-fn
                       (funcall type-completion-fn
                                (lambda (&rest args)
