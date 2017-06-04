@@ -117,7 +117,7 @@
         (when delete-pathname-p
           (ignore-errors (delete-file pathname)))))))
 
-(defun evaluate-sandbox-tests-in-file (pathname)
+(defun evaluate-sandbox-tests-in-file-if (function pathname)
   (flet ((process (stream eof-value)
            (ignore-errors (delete-package *sandbox-package*))
            (unwind-protect (let* ((*package* (make-package *sandbox-package* :use *sandbox-package-use-list*))
@@ -127,14 +127,19 @@
                                    ((and (listp form)
                                          (>= (length form) 2)
                                          (symbolp (first form))
-                                         (symbolp (second form)))
-                                    (evaluate-sandbox-test form))
+                                         (or (symbolp (second form))
+                                             (listp (second form))))
+                                    (when (funcall function (first form) (second form))
+                                      (evaluate-sandbox-test form)))
                                    (t
                                     (error "Encountered an invalid sandbox test form:~%~A~%." form))))
              (delete-package *sandbox-package*))))
-    (format t "~&~c~%;;;; Running sandbox tests in file: ~A~%" #\Page pathname)
     (with-open-file (in pathname)
       (loop
         with eof-value = '#:eof
         for form = (process in eof-value)
         until (eql form eof-value)))))
+
+(defun evaluate-sandbox-tests-in-file (pathname)
+  (format t "~&~c~%;;;; Running sandbox tests in file: ~A~%" #\Page pathname)
+  (evaluate-sandbox-tests-in-file-if (constantly t) pathname))
