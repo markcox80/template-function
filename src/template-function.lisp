@@ -354,7 +354,9 @@
              ;; Insert a dummy function so that the compiler doesn't
              ;; complain about a missing function definition.
              (fmakunbound instantiation-name)
-             (setf (fdefinition instantiation-name) (constantly nil))
+             (setf (fdefinition instantiation-name) (lambda (&rest args)
+                                                      (declare (ignore args))
+                                                      nil))
              (note-template-function template-function argument-types))
            (cons instantiation-name (specialization-store:compiler-macro-form-arguments form))))
         (t
