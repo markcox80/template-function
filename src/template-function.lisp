@@ -349,6 +349,7 @@
          ;; This code is invoked when an instantiation of template
          ;; function is calling another template function.
          (let* ((argument-types (compute-form-argument-types template-function form environment))
+                (function-type (compute-function-type template-function argument-types))
                 (instantiation-name (compute-name template-function argument-types)))
            (unless (processed-template-function-p template-function argument-types)
              ;; Insert a dummy function so that the compiler doesn't
@@ -357,6 +358,7 @@
              (setf (fdefinition instantiation-name) (lambda (&rest args)
                                                       (declare (ignore args))
                                                       nil))
+             (proclaim `(ftype ,function-type ,instantiation-name))
              (note-template-function template-function argument-types))
            (cons instantiation-name (specialization-store:compiler-macro-form-arguments form))))
         (t
