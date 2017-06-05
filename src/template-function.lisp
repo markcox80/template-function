@@ -446,6 +446,18 @@
           (compiler-macro-function name) (lambda (form &optional environment)
                                            (expand-template-function template-function form environment)))
     template-function))
+
+(defmethod compute-name ((name symbol) argument-types)
+  (compute-name (find-template-function name) argument-types))
+
+(defmethod compute-name* ((name symbol) &rest argument-types)
+  (compute-name (find-template-function name) argument-types))
+
+(defmethod compute-function-type ((name symbol) argument-types)
+  (compute-function-type (find-template-function name) argument-types))
+
+(defmethod compute-function-type* ((name symbol) &rest argument-types)
+  (compute-function-type (find-template-function name) argument-types))
 
 ;;;; Glue Layer (Instantiation requests)
 
