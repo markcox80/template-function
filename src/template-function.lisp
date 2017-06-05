@@ -106,6 +106,11 @@
                   (specialization-store.lambda-lists:optional-parameter
                    (when optional?
                      (setf optional? nil)
+                     ;; Don't push &optional because optional
+                     ;; parameters in the store lambda list become
+                     ;; required parmaeters in the specialization
+                     ;; lambda list.
+                     #- (and)
                      (push '&optional rv))
                    (push (list (specialization-store.lambda-lists:parameter-var parameter)
                                (if value?
