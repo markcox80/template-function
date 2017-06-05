@@ -576,7 +576,6 @@
         `(progn
            ,@globals
            (ensure-template-function ',name ',lambda-list
-                                     :environment environment
                                      :lambda-form-function ,(wrap-function lambda-form-function)
                                      :function-type-function ,(wrap-function function-type-function)
                                      :name-function ,(wrap-function name-function)
