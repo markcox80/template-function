@@ -579,10 +579,11 @@
              (type-completion-function (or type-completion-function
                                            (specialization-store.lambda-lists:make-type-completion-lambda-form parameters environment)))
              (name-function (or name-function
-                                (make-name-lambda-form name parameters))))
+                                (make-name-lambda-form name parameters)))
+             (new-lambda-list (specialization-store.lambda-lists:original-lambda-list parameters)))
         `(eval-when (:compile-toplevel :load-toplevel :execute)
            ,@globals
-           (ensure-template-function ',name ',lambda-list
+           (ensure-template-function ',name ',new-lambda-list
                                      :lambda-form-function ,(wrap-function lambda-form-function)
                                      :function-type-function ,(wrap-function function-type-function)
                                      :name-function ,(wrap-function name-function)
