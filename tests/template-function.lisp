@@ -103,6 +103,29 @@
       (signals error (template-function:ensure-instantiation* tf 'real))
       (signals error (template-function:ensure-instantiation* tf 'real 'real 'real 'real)))))
 
+(test ensure-instantiation/rest
+  (flet ((make-lambda-form (<x> &rest <args>)
+           (let* ((vars (alexandria:make-gensym-list (length <args>))))
+             `(lambda (x ,@vars)
+                (check-type x ,<x>)
+                ,@(loop
+                    for var in vars
+                    for type in <args>
+                    collect `(check-type ,var ,type))
+                (+ x ,@vars))))
+         (make-function-type (x &rest args)
+           `(function (,x ,@args) number)))
+    (let* ((tf (make-instance 'template-function:template-function
+                              :name 'example
+                              :lambda-list '(x &rest args)
+                              :lambda-form-function #'make-lambda-form
+                              :function-type-function #'make-function-type)))
+      (signals error (template-function:ensure-instantiation* tf))
+      (finishes (template-function:ensure-instantiation* tf 'real))
+      (finishes (template-function:ensure-instantiation* tf 'real 'real))
+      (finishes (template-function:ensure-instantiation* tf 'real 'real 'integer))
+      (is (= (+ 1 2 3) (template-function:funcall-template-function tf 1 2 3))))))
+
 (test reinitialize-instance/errors
   (let* ((tf (make-instance 'template-function:template-function
                             :name 'example
