@@ -14,4 +14,5 @@
     (is-true (trial))
     (flet ((shadowable-operator (value)
              (1- value)))
+      (declare (ignorable (function shadowable-operator)))
       (is-false (trial)))))
