@@ -527,15 +527,19 @@
          (name (compute-name template-function argument-types))
          (function-type (compute-function-type template-function argument-types))
          (specialization-lambda-list (make-specialization-lambda-list (parameters template-function)
-                                                                      function-type))
+                                                                      argument-types))
+         (expand-function (specialization-store:compiler-macro-lambda (&rest args)
+                            `(the ,(third function-type) (,name ,@args))))
          (specialization (make-instance 'specialization-store:standard-specialization
                                         :name name
                                         :lambda-list specialization-lambda-list
                                         :function function
+                                        :expand-function expand-function
                                         :value-type (third function-type))))
-    (specialization-store:add-specialization template-function specialization)
+    (specialization-store:add-specialization (store template-function) specialization)
     (setf (fdefinition name) function)
-    (proclaim `(function ,function-type ,name))))
+    (proclaim `(ftype ,function-type ,name)))
+  (values))
 
 
 ;;;; Syntax Layer (template function)
