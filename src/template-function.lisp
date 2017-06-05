@@ -614,9 +614,11 @@
 
 (defmacro require-instantiations (&rest pairs-of-name-and-argument-types)
   (let* ((pairs (loop
-                  for (template-function-name . argument-types) in pairs-of-name-and-argument-types
-                  collect (list (find-template-function template-function-name)
-                                argument-types)))
+                  for (template-function-name . requests) in pairs-of-name-and-argument-types
+                  for template-function = (find-template-function template-function-name)
+                  append (loop
+                           for argument-types in requests
+                           collect (list template-function argument-types))))
          (instantiations (%ensure-instantiations pairs)))
     `(eval-when (:load-toplevel)
        ;; Generate the instantiations when a fasl is loaded.
