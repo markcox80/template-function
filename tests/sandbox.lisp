@@ -98,6 +98,12 @@
                  (compile-file pathname :output-file (make-pathname :name "sandbox" :type "fasl" :defaults tmpdir)
                                         :verbose t)
                (declare (ignore warningsp))
+               (let* ((old-package *package*)
+                      (old-name (package-name *package*))
+                      (old-use-list (package-use-list old-package)))
+                 (setf *package* (find-package "COMMON-LISP"))
+                 (ignore-errors (delete-package old-package))
+                 (setf *package* (make-package old-name :use old-use-list)))
                (unless failurep
                  (load fasl-pathname))))))
     (let* ((delete-pathname-p nil)
