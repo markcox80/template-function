@@ -63,6 +63,18 @@
       (let* ((form '(example (the array x) (the array y) :alpha 1)))
         (is (not (eql form (template-function:expand-template-function tf form))))))))
 
+(test ensure-instantiation/keywords
+  (let* ((tf (make-instance 'template-function:template-function
+                            :name 'example
+                            :lambda-list '(x y &key alpha beta)
+                            :lambda-form-function #'xpy-lambda-form
+                            :function-type-function #'xpy-function-type
+                            :type-completion-function #'complete-xpy-types
+                            :value-completion-function #'complete-xpy-values)))
+    (finishes (template-function:ensure-instantiation* tf 'array 'array :alpha 'real :beta 'real))
+    (finishes (template-function:ensure-instantiation* tf 'array 'array :gamma 'real :allow-other-keys t))
+    (signals error (template-function:ensure-instantiation* tf 'array))
+    (signals error (template-function:ensure-instantiation* tf 'array 'array :gamma 'real))))
 (test reinitialize-instance/errors
   (let* ((tf (make-instance 'template-function:template-function
                             :name 'example
