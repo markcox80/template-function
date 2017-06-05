@@ -78,8 +78,8 @@
                      else
                        collect (list parameter keyword-arg)))
                   ((specialization-store.lambda-lists:rest-parameter-p parameters)
-                   (cons (specialization-store.lambda-lists:rest-parameter parameters)
-                         arguments))
+                   (list (cons (specialization-store.lambda-lists:rest-parameter parameters)
+                               arguments)))
                   (arguments
                    (too-many-arguments))))))
 
