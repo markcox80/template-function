@@ -76,7 +76,7 @@
                      if (eql keyword-arg absent)
                        collect (list parameter)
                      else
-                       collect (list keyword keyword-arg)))
+                       collect (list parameter keyword-arg)))
                   ((specialization-store.lambda-lists:rest-parameter-p parameters)
                    (cons (specialization-store.lambda-lists:rest-parameter parameters)
                          arguments))
