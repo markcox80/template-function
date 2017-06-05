@@ -572,8 +572,10 @@
       (let* ((value-completion-function (or value-completion-function
                                             (specialization-store.lambda-lists:make-value-completion-lambda-form parameters)))
              (type-completion-function (or type-completion-function
-                                           (specialization-store.lambda-lists:make-type-completion-lambda-form parameters environment))))
-        `(progn
+                                           (specialization-store.lambda-lists:make-type-completion-lambda-form parameters environment)))
+             (name-function (or name-function
+                                (make-name-lambda-form name parameters))))
+        `(eval-when (:compile-toplevel :load-toplevel :execute)
            ,@globals
            (ensure-template-function ',name ',lambda-list
                                      :lambda-form-function ,(wrap-function lambda-form-function)
@@ -596,15 +598,16 @@
              (if (symbolp class)
                  (find-class class)
                  class)))
-    (let* ((class (ensure-class (or (body-value :class)
-                                    'template-function-class))))
+    (let* ((class (ensure-class (or (body-value :metaclass)
+                                    'template-function))))
       (define-template-using-object class
         :name name
         :lambda-list lambda-list
         :lambda-form-function (body-value :lambda-form-function t)
+        :function-type-function (body-value :function-type-function t)
         :name-function (body-value :name-function)
-        :type-completion-function (body-value :type-completion-function t)
-        :value-completion-function (body-value :value-completion-function t)
+        :type-completion-function (body-value :type-completion-function)
+        :value-completion-function (body-value :value-completion-function)
         :environment env))))
 
 ;;;; Syntax Layer (Instantiation requests)
