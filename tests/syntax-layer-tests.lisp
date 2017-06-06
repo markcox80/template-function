@@ -98,3 +98,65 @@
            (y (list 5 4 3 2 1))
            (expected '(7 8 9 10 11)))
       (is (equalp expected (xpy (the list x) (the list y) 2))))))
+
+(syntax-layer-test basic/keywords
+  (eval-when (:compile-toplevel :load-toplevel :execute)
+    (defun make-lambda-form (<x> <y> &key ((:alpha <alpha>)))
+      `(lambda (x y &key alpha)
+         (check-type x ,<x>)
+         (check-type y ,<y>)
+         (check-type alpha ,<alpha>)
+         (dotimes (i (min (length x) (length y)))
+           (incf (elt y i) (* alpha (elt x i))))
+         y))
+
+    (defun make-function-type (x y &key (alpha 'number))
+      `(function (,x ,y &key (:alpha ,alpha)) ,y))
+
+    (defun make-type-completion-function (continuation)
+      (lambda (x y &key (alpha '(eql 1)))
+        (funcall continuation x y :alpha alpha)))
+
+    (flet ((compute-alpha ()
+             1))
+      (template-function:define-template xpy (x y &key (alpha (compute-alpha)))
+        (:lambda-form-function #'make-lambda-form)
+        (:function-type-function #'make-function-type)
+        (:type-completion-function #'make-type-completion-function))))
+
+  (template-function:require-instantiations (xpy (array array)
+                                                 (array array :alpha real)
+                                                 (list list)
+                                                 (list list :alpha real)))
+
+  (test global-environment
+    (let* ((array-name (compute-name 'xpy '(array array)))
+           (array-alpha-name (compute-name 'xpy '(array array :alpha real)))
+           (list-name (compute-name 'xpy '(list list)))
+           (list-alpha-name (compute-name 'xpy '(list list :alpha real))))
+
+      (is-true (fboundp array-name))
+      (is-true (fboundp array-alpha-name))
+      (is-true (fboundp list-name))
+      (is-true (fboundp list-alpha-name))))
+
+  (test usage
+    (let* ((x (make-array 5 :initial-contents '(1 2 3 4 5)))
+           (y (make-array 5 :initial-contents '(5 4 3 2 1)))
+           (expected #(6 6 6 6 6)))
+      (is (equalp expected (xpy (the array x) (the array y)))))
+
+    (let* ((x (make-array 5 :initial-contents '(1 2 3 4 5)))
+           (y (make-array 5 :initial-contents '(5 4 3 2 1)))
+           (expected #(7 8 9 10 11)))
+      (is (equalp expected (xpy (the array x) (the array y) :alpha 2))))
+
+    (let* ((x (list 1 2 3 4 5))
+           (y (list 5 4 3 2 1))
+           (expected '(6 6 6 6 6)))
+      (is (equalp expected (xpy (the list x) (the list y)))))
+
+    (let* ((x (list 1 2 3 4 5))
+           (y (list 5 4 3 2 1))
+           (expected '(7 8 9 10 11)))
+      (is (equalp expected (xpy (the list x) (the list y) :alpha 2))))))
