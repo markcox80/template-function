@@ -36,7 +36,14 @@
     (let* ((x (list 1 2 3 4 5))
            (y (list 5 4 3 2 1))
            (expected '(7 8 9 10 11)))
-      (is (equalp expected (xpy (the list x) (the list y) 2))))))
+      (is (equalp expected (xpy (the list x) (the list y) 2))))
+
+    (let* ((x (make-array 3 :initial-contents '(1 2 3)))
+           (y (list 4 5 6)))
+      (signals error (xpy (the array x) (the list y) 1))
+      (signals error (xpy x y 1))
+      (signals error (xpy x))
+      (signals error (xpy x x 1 2)))))
 
 (syntax-layer-test basic/optional
   (eval-when (:compile-toplevel :load-toplevel :execute)
