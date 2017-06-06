@@ -159,7 +159,9 @@
     (let* ((x (list 1 2 3 4 5))
            (y (list 5 4 3 2 1))
            (expected '(7 8 9 10 11)))
-      (is (equalp expected (xpy (the list x) (the list y) :alpha 2)))))
+      (is (equalp expected (xpy (the list x) (the list y) :alpha 2))))
+
+    (signals error (xpy #(1 2 3) (list 1 2 3))))
 
   (test other-keys
     (let* ((x (list 1 2 3))
