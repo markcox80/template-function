@@ -195,8 +195,11 @@
                                               (add (integer integer integer))))
 
   (test global-environment
-    (is-true (fboundp (template-function:compute-name* 'add 'double-float 'double-float)))
-    (is-true (fboundp (template-function:compute-name* 'add 'integer 'integer 'integer))))
+    (is-true (fboundp 'add))
+    (flet ((check (&rest types)
+             (is-true (fboundp (template-function:compute-name 'add types)))))
+      (check 'double-float 'double-float)
+      (check 'integer 'integer 'integer)))
 
   (test usage
     (is (= 11d0 (add 5d0 6d0)))
