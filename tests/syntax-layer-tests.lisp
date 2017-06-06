@@ -20,11 +20,10 @@
                                                  (list list real)))
 
   (test global-environment
-    (let* ((array-name (compute-name 'xpy '(array array real)))
-           (list-name (compute-name 'xpy '(list list real))))
-      (is-true (fboundp array-name))
-      (is-true (fboundp list-name)))
-
+    (flet ((check (&rest types)
+             (is-true (fboundp (template-function:compute-name 'xpy types)))))
+      (check 'array 'array 'real)
+      (check 'list 'list 'real))
     (is-true (fboundp 'xpy)))
 
   (test usage
@@ -77,6 +76,7 @@
                                                  (list list real)))
 
   (test global-environment
+    (is-true (fboundp 'xpy))
     (let* ((array-name (compute-name 'xpy '(array array)))
            (array-alpha-name (compute-name 'xpy '(array array real)))
            (list-name (compute-name 'xpy '(list list)))
