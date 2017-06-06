@@ -23,7 +23,9 @@
     (let* ((array-name (compute-name 'xpy '(array array real)))
            (list-name (compute-name 'xpy '(list list real))))
       (is-true (fboundp array-name))
-      (is-true (fboundp list-name))))
+      (is-true (fboundp list-name)))
+
+    (is-true (fboundp 'xpy)))
 
   (test usage
     (let* ((x (make-array 5 :initial-contents '(1 2 3 4 5)))
