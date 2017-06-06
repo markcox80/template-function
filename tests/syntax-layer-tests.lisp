@@ -159,7 +159,13 @@
     (let* ((x (list 1 2 3 4 5))
            (y (list 5 4 3 2 1))
            (expected '(7 8 9 10 11)))
-      (is (equalp expected (xpy (the list x) (the list y) :alpha 2))))))
+      (is (equalp expected (xpy (the list x) (the list y) :alpha 2)))))
+
+  (test other-keys
+    (let* ((x (list 1 2 3))
+           (y (list 4 5 6)))
+      (signals error (xpy x y :gamma 1))
+      (is (equal '(5 7 9) (xpy x y :gamma 1 :allow-other-keys t))))))
 
 (syntax-layer-test basic/rest
   (eval-when (:compile-toplevel :load-toplevel :execute)
