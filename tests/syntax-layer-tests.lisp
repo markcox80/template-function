@@ -160,3 +160,35 @@
            (y (list 5 4 3 2 1))
            (expected '(7 8 9 10 11)))
       (is (equalp expected (xpy (the list x) (the list y) :alpha 2))))))
+
+(syntax-layer-test basic/rest
+  (eval-when (:compile-toplevel :load-toplevel :execute)
+    (defun make-lambda-form (&rest <args>)
+      (let* ((vars (alexandria:make-gensym-list (length <args>))))
+        `(lambda (,@vars)
+           ,@(loop
+               for var in vars
+               for <arg> in <args>
+               collect `(check-type ,var ,<arg>))
+           (+ ,@vars))))
+
+    (defun make-function-type (&rest args)
+      `(function ,args number))
+
+    (template-function:define-template add (&rest args)
+      (:lambda-form-function #'make-lambda-form)
+      (:function-type-function #'make-function-type))
+
+    (template-function:require-instantiations (add (double-float double-float))
+                                              (add (integer integer integer))))
+
+  (test global-environment
+    (is-true (fboundp (template-function:compute-name* 'add 'double-float 'double-float)))
+    (is-true (fboundp (template-function:compute-name* 'add 'integer 'integer 'integer))))
+
+  (test usage
+    (is (= 11d0 (add 5d0 6d0)))
+    (is (= 1 (add 100 -50 -49)))
+
+    (signals error (add 1d0))
+    (signals error (add 1 2 3 4))))
