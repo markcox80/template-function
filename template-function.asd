@@ -8,5 +8,6 @@
                 :components ((:file "packages")
                              (:file "name-mangling")
                              (:file "name-mangling-definitions")
+                             (:file "argument-specification")
                              (:file "template-function"))))
   :in-order-to ((test-op (test-op "template-function-tests"))))

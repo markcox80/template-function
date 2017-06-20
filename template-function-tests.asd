@@ -7,6 +7,7 @@
                 :serial t
                 :components ((:file "packages")
                              (:file "lisp-implementation")
+                             (:file "argument-specification")
                              (:file "template-function")
                              (:file "sandbox")
                              (:file "asdf")))))
