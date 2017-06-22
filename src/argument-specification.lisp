@@ -222,6 +222,11 @@
                      "Invalid object ~A found in the argument specification lambda list ~A."
                      object as-lambda-list))
 
+(defun %signal-others-and-keys-error (as-lambda-list)
+  (%signal-pas-error as-lambda-list
+                     "Cannot use &others lambda list keyword alongside the &key lambda list keyword in ~A."
+                     as-lambda-list))
+
 (define-condition duplicate-variable-error (parse-lambda-list-error)
   ((variable :initarg :variable
              :reader duplicate-variable-error-variable)))
@@ -379,7 +384,9 @@
                        #'parse-lambda-list/others
                        #'parse-lambda-list/rest
                        #'parse-lambda-list/keys))
-      (destructuring-bind (keysp keys othersp) keys-tuple
+      (destructuring-bind (keysp keys other-keys-p) keys-tuple
+        (when (and others keysp)
+          (%signal-others-and-keys-error as-lambda-list))
         (let* ((all-parameters (append (ensure-list whole)
                                        required
                                        (ensure-list others)
@@ -395,7 +402,7 @@
                          :rest-parameter rest
                          :keyword-parameters-p keysp
                          :keyword-parameters keys
-                         :allow-other-keywords othersp))))))
+                         :allow-other-keywords other-keys-p))))))
 
 ;;;; argument-specification-lambda
 ;;;;

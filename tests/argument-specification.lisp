@@ -25,8 +25,9 @@
            (dolist (others '(nil (&others others) (&others others2)))
              (dolist (rest '(nil (&rest args) (&rest args2)))
                (dolist (keys '(nil (&key) (&key &allow-other-keys) (&key x y) (&key z &allow-other-keys)))
-                 (do-trial (append whole required others rest keys)
-                           expected)))))))
+                 (unless (and others keys)
+                   (do-trial (append whole required others rest keys)
+                             expected))))))))
 
   ;; Errors
   (macrolet ((trial (lambda-list)
@@ -63,8 +64,9 @@
            (dolist (others '(nil (&others others) (&others others2)))
              (dolist (rest '(nil (&rest args) (&rest args2)))
                (dolist (keys '(nil (&key) (&key &allow-other-keys) (&key x y) (&key z &allow-other-keys)))
-                 (do-trial (append whole required others rest keys)
-                           expected)))))))
+                 (unless (and others keys)
+                   (do-trial (append whole required others rest keys)
+                             expected))))))))
 
   ;; Errors
   (macrolet ((trial (lambda-list)
@@ -93,9 +95,8 @@
           for expected in '(nil others others2)
           do
              (dolist (rest '(nil (&rest args)))
-               (dolist (keys '(nil (&key) (&key &allow-other-keys) (&key w x) (&key z &allow-other-keys)))
-                 (do-trial (append whole required others rest keys)
-                   expected)))))))
+               (do-trial (append whole required others rest)
+                 expected))))))
 
   ;; Errors
   (macrolet ((trial (lambda-list)
@@ -109,7 +110,8 @@
     (trial (&others others &others others2))
     (trial (&rest args &others others))
     (trial (&key a &others others))
-    (trial (&key a &allow-other-keys &others others))))
+    (trial (&key a &allow-other-keys &others others))
+    (trial (&others others &key a))))
 
 (test parse-lambda-list/rest
   ;; Valid
@@ -132,8 +134,9 @@
             for expected in '(nil args args2)
             do
                (dolist (keys '(nil (&key) (&key &allow-other-keys) (&key w x) (&key z &allow-other-keys)))
-                 (do-trial (append whole required others rest keys)
-                   expected)))))))
+                 (unless (and others keys)
+                   (do-trial (append whole required others rest keys)
+                     expected))))))))
 
   ;; Errors
   (macrolet ((trial (lambda-list)
@@ -173,14 +176,13 @@
                         "Invalid keyword constituents ~A found in lambda list ~A." keys lambda-list))))
     (dolist (whole '(nil (&whole whole)))
       (dolist (required '(nil (a b)))
-        (dolist (others '(nil (&others others)))
-          (dolist (rest '(nil (&rest args)))
-            (loop
-              for keys in '(nil (&key) (&key &allow-other-keys) (&key x ((:y z) nil zp) (w hey) ((:g g))))
-              for expected in '(nil nil nil ((:x x t nil) (:y z nil zp) (:w w hey nil) (:g g t nil)))
-              do
-                 (do-trial (append whole required others rest keys)
-                   expected)))))))
+        (dolist (rest '(nil (&rest args)))
+          (loop
+            for keys in '(nil (&key) (&key &allow-other-keys) (&key x ((:y z) nil zp) (w hey) ((:g g))))
+            for expected in '(nil nil nil ((:x x t nil) (:y z nil zp) (:w w hey nil) (:g g t nil)))
+            do
+               (do-trial (append whole required rest keys)
+                         expected))))))
 
   ;; Error
   (macrolet ((trial (lambda-list)
