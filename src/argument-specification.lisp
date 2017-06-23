@@ -227,6 +227,11 @@
                      "Cannot use &others lambda list keyword alongside the &key lambda list keyword in ~A."
                      as-lambda-list))
 
+(defun %signal-others-and-no-rest-error (as-lambda-list)
+  (%signal-pas-error as-lambda-list
+                     "Cannot use &others lambda list keyword without the &rest lambda list keyword in ~A."
+                     as-lambda-list))
+
 (define-condition duplicate-variable-error (parse-lambda-list-error)
   ((variable :initarg :variable
              :reader duplicate-variable-error-variable)))
@@ -387,6 +392,8 @@
       (destructuring-bind (keysp keys other-keys-p) keys-tuple
         (when (and others keysp)
           (%signal-others-and-keys-error as-lambda-list))
+        (when (and others (not rest))
+          (%signal-others-and-no-rest-error as-lambda-list))
         (let* ((all-parameters (append (ensure-list whole)
                                        required
                                        (ensure-list others)

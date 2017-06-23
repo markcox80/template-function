@@ -24,10 +24,11 @@
          (dolist (required '(nil (a) (a b) (a b c)))
            (dolist (others '(nil (&others others) (&others others2)))
              (dolist (rest '(nil (&rest args) (&rest args2)))
-               (dolist (keys '(nil (&key) (&key &allow-other-keys) (&key x y) (&key z &allow-other-keys)))
-                 (unless (and others keys)
-                   (do-trial (append whole required others rest keys)
-                             expected))))))))
+               (unless (and others (not rest))
+                 (dolist (keys '(nil (&key) (&key &allow-other-keys) (&key x y) (&key z &allow-other-keys)))
+                   (unless (and others keys)
+                     (do-trial (append whole required others rest keys)
+                       expected)))))))))
 
   ;; Errors
   (macrolet ((trial (lambda-list)
@@ -63,10 +64,11 @@
         do
            (dolist (others '(nil (&others others) (&others others2)))
              (dolist (rest '(nil (&rest args) (&rest args2)))
-               (dolist (keys '(nil (&key) (&key &allow-other-keys) (&key x y) (&key z &allow-other-keys)))
-                 (unless (and others keys)
-                   (do-trial (append whole required others rest keys)
-                             expected))))))))
+               (unless (and others (not rest))
+                 (dolist (keys '(nil (&key) (&key &allow-other-keys) (&key x y) (&key z &allow-other-keys)))
+                   (unless (and others keys)
+                     (do-trial (append whole required others rest keys)
+                       expected)))))))))
 
   ;; Errors
   (macrolet ((trial (lambda-list)
@@ -94,9 +96,10 @@
           for others in '(nil (&others others) (&others others2))
           for expected in '(nil others others2)
           do
-             (dolist (rest '(nil (&rest args)))
-               (do-trial (append whole required others rest)
-                 expected))))))
+             (dolist (rest '((&rest args)))
+               (unless (and others (not rest))
+                 (do-trial (append whole required others rest)
+                   expected)))))))
 
   ;; Errors
   (macrolet ((trial (lambda-list)
@@ -111,7 +114,8 @@
     (trial (&rest args &others others))
     (trial (&key a &others others))
     (trial (&key a &allow-other-keys &others others))
-    (trial (&others others &key a))))
+    (trial (&others others &key a))
+    (trial (a b &others others))))
 
 (test parse-lambda-list/rest
   ;; Valid
@@ -133,10 +137,11 @@
             for rest in '(nil (&rest args) (&rest args2))
             for expected in '(nil args args2)
             do
-               (dolist (keys '(nil (&key) (&key &allow-other-keys) (&key w x) (&key z &allow-other-keys)))
-                 (unless (and others keys)
-                   (do-trial (append whole required others rest keys)
-                     expected))))))))
+               (unless (and others (not rest))
+                 (dolist (keys '(nil (&key) (&key &allow-other-keys) (&key w x) (&key z &allow-other-keys)))
+                   (unless (and others keys)
+                     (do-trial (append whole required others rest keys)
+                       expected)))))))))
 
   ;; Errors
   (macrolet ((trial (lambda-list)
@@ -150,7 +155,9 @@
     (trial (&key a &rest args))
     (trial (&rest args &others others))
     (trial (&rest args a))
-    (trial (&rest args &whole w))))
+    (trial (&rest args &whole w))
+    (trial (a b &others others &rest args &key (d t)))
+    (trial (a b &others others))))
 
 (test parse-lambda-list/key
   ;; Valid
@@ -198,7 +205,7 @@
   (macrolet ((trial (lambda-list)
                `(signals duplicate-variable-error (parse-lambda-list ',lambda-list))))
     (trial (&whole whole whole))
-    (trial (&whole whole &others whole))
+    (trial (&whole whole &others whole &rest args))
     (trial (&whole whole &rest whole))
     (trial (&whole whole &key whole))
     (trial (&whole whole &key ((:foo whole))))
