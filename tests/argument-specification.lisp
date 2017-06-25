@@ -332,7 +332,9 @@
       (trial)
       (trial t)
       (trial t t t)
-      (trial t t (:hey string))))
+      (trial t t (:hey string))
+      (trial t t (:hey))
+      (trial t t (:c string) (:hey 1 2 3))))
 
   ;; Whole
   (let* ((fn (argument-specification-lambda (&whole whole a &key b)
@@ -365,7 +367,9 @@
                  `(signals argument-specification-lambda-error (funcall fn ',arg-spec))))
       (trial)
       (trial t)
-      (trial t t t)))
+      (trial t t t)
+      (trial t t (:hey))
+      (trial t t (:c string) (:hey 1 2 3))))
 
   ;; Whole
   (let* ((fn (argument-specification-lambda (&whole whole a &key b &allow-other-keys)
