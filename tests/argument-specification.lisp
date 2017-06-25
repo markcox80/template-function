@@ -307,7 +307,7 @@
     (is (equal '((t &rest t) t t)
                act))))
 
-(test argument-specification-lambda/keys
+(test argument-specification-lambda/keys-sans-allow-others
   (let* ((fn (argument-specification-lambda (a b &key (c nil cp) ((:d foo)) e)
                (list a b (list c cp) foo e))))
     (labels ((do-trial (expected input)
@@ -339,6 +339,39 @@
                (list whole a b)))
          (act (funcall fn '(t &key (:b t)))))
     (is (equal '((t &key (:b t)) t t)
+               act))))
+
+(test argument-specification-lambda/keys-and-allow-others
+  (let* ((fn (argument-specification-lambda (a b &key (c nil cp) ((:d foo)) e &allow-other-keys)
+               (list a b (list c cp) foo e))))
+    (labels ((do-trial (expected input)
+               (is (equal expected (funcall fn input)))))
+      (macrolet ((trial (expected input)
+                   `(do-trial ',expected ',input)))
+        (trial (t t (nil nil) t t)
+               (t t &key (:hey string)))
+        (trial (t t (nil nil) t t)
+               (t t &key (:hey string)))
+        (trial (bit integer (float t) t t)
+               (bit integer &key (:c float) (:hey string)))
+        (trial (integer bit (nil nil) float t)
+               (integer bit &key (:d float) (:hey string)))
+        (trial (float string (nil nil) t character)
+               (float string &key (:e character) (:hey string)))
+        (trial (t t (string t) character bit)
+               (t t &key (:c string) (:d character) (:hey string) (:e bit)))))
+
+    (macrolet ((trial (&rest arg-spec)
+                 `(signals argument-specification-lambda-error (funcall fn ',arg-spec))))
+      (trial)
+      (trial t)
+      (trial t t t)))
+
+  ;; Whole
+  (let* ((fn (argument-specification-lambda (&whole whole a &key b &allow-other-keys)
+               (list whole a b)))
+         (act (funcall fn '(t &key (:b t) (:hey string)))))
+    (is (equal '((t &key (:b t) (:hey string)) t t)
                act))))
 
 (test argument-specification-lambda/declarations

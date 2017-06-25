@@ -553,9 +553,7 @@
            (cond (pos
                   (setf (aref storage pos) (rest item)))
                  ((not allow-other-keys)
-                  (signal-parse-lambda-list-error as-lambda-list
-                                                  "Invalid keyword ~A found in argument specification ~A."
-                                                  (first item) arg-spec)))))))
+                  (signal-invalid-argument-specification-error arg-spec as-lambda-list)))))))
 
 (defmacro argument-specification-lambda (as-lambda-list &body body)
   (let* ((parameters (parse-lambda-list as-lambda-list))
