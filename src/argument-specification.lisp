@@ -519,7 +519,7 @@
                            (null (cddr arg-spec-rest)))
                       (second arg-spec-rest))
                      (t
-                      (signal-malformed-argument-specification-error arg-spec as-lambda-list))))))
+                      (signal-invalid-argument-specification-error arg-spec as-lambda-list))))))
 
 ;; arg-spec must contain required-count values with a keyword section.
 (defun %asl/check-keys (arg-spec required-count as-lambda-list keywords storage allow-other-keys)
