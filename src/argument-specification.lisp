@@ -495,7 +495,7 @@
       (signal-too-few-required-values-error arg-spec as-lambda-list))
     (when (or (/= 2 (length rest))
               (eql '&rest rest-type))
-      (signal-malformed-argument-specification-error arg-spec as-lambda-list))
+      (signal-invalid-argument-specification-error arg-spec as-lambda-list))
     (values rest-type rest-pos)))
 
 ;; arg-spec must contain required-count values with an optional rest
