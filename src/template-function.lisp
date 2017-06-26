@@ -50,6 +50,59 @@
 
 ;;;; Helpers
 
+(defun make-specialization-lambda-list-lambda-form (parameters)
+  ;; Create a specialization lambda list for a given
+  ;; argument-specification.
+  (check-type parameters template-function.argument-specification:lambda-list-parameters)
+  (let* ((required (template-function.argument-specification:required-parameters parameters))
+         (others (template-function.argument-specification:others-parameter parameters))
+         (rest (template-function.argument-specification:rest-parameter parameters))
+         (keys? (template-function.argument-specification:keyword-parameters-p parameters))
+         (keywords (template-function.argument-specification:keyword-parameters parameters))
+         (allow-other-keys? (template-function.argument-specification:allow-other-keywords-p parameters))
+         (req-vars (mapcar #'template-function.argument-specification:parameter-var required))
+         (req-section (loop
+                        for var in req-vars
+                        collect `(list ',var ,var))))
+    (macroexpand-1
+     (cond ((and (not others) (not rest) (not keys?))
+            `(template-function.argument-specification:argument-specification-lambda (,@req-vars)
+               (list ,@req-section)))
+           ((and (not others) rest (not keys?))
+            (let* ((rest-var (template-function.argument-specification:parameter-var rest)))
+              `(template-function.argument-specification:argument-specification-lambda (,@req-vars &rest ,rest-var)
+                 (list ,@req-section '&rest (list ',rest-var ,rest-var)))))
+           ((and others rest (not keys?))
+            (let* ((others-var (template-function.argument-specification:parameter-var others))
+                   (rest-var (template-function.argument-specification:parameter-var rest)))
+              (alexandria:with-gensyms (o-vars)
+                `(template-function.argument-specification:argument-specification-lambda (,@req-vars &others ,others-var &rest ,rest-var)
+                   (let* ((,o-vars (alexandria:make-gensym-list (length ,others-var))))
+                     (append (list ,@req-section)
+                             (mapcar #'(lambda (name type)
+                                         (list name type))
+                                     ,o-vars ,others-var)
+                             (list '&rest (list ',rest-var ,rest-var))))))))
+           ((and (not others) (not rest) keys?)
+            (let* ((keys-arguments (loop
+                                     for p in keywords
+                                     for keyword = (template-function.argument-specification:parameter-keyword p)
+                                     for var = (template-function.argument-specification:parameter-var p)
+                                     for init-type = (template-function.argument-specification:parameter-init-form p)
+                                     collect `((,keyword ,var) ,init-type)))
+                   (other-keywords (when allow-other-keys?
+                                     '(&allow-other-keys)))
+                   (keys-section (loop
+                                   for p in keywords
+                                   for keyword = (template-function.argument-specification:parameter-keyword p)
+                                   for var = (template-function.argument-specification:parameter-var p)
+                                   collect `(list (list ',keyword ',var) ,var))))
+              `(template-function.argument-specification:argument-specification-lambda (,@req-vars &key ,@keys-arguments ,@other-keywords)
+                 (append (list ,@req-section)
+                         (list '&key ,@keys-section)))))
+           (t
+            (error "Do not know how to process argument specification parameters ~A." parameters))))))
+
 (defun make-name-lambda-form (prefix parameters)
   ;; Create a lambda form which accepts an argument-specification and
   ;; returns a unique name.
