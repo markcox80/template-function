@@ -113,6 +113,7 @@
          (rest (template-function.argument-specification:rest-parameter parameters))
          (keys? (template-function.argument-specification:keyword-parameters-p parameters))
          (keywords (template-function.argument-specification:keyword-parameters parameters))
+         (allow-other-keys? (template-function.argument-specification:allow-other-keywords-p parameters))
          (req-vars (mapcar #'template-function.argument-specification:parameter-var required)))
     (macroexpand-1
      (cond ((and (not others) (not rest) (not keys?))
@@ -137,8 +138,10 @@
                                     for var = (template-function.argument-specification:parameter-var p)
                                     for init-type = (template-function.argument-specification:parameter-init-form p)
                                     collect `((,keyword ,var) ,init-type)))
+                   (other-keywords (when allow-other-keys?
+                                     '(&allow-other-keys)))
                    (key-vars (mapcar #'template-function.argument-specification:parameter-var keywords)))
-              `(template-function.argument-specification:argument-specification-lambda (,@req-vars &key ,@key-arguments)
+              `(template-function.argument-specification:argument-specification-lambda (,@req-vars &key ,@key-arguments ,@other-keywords)
                  (name-for-types ',prefix ,@req-vars ,@key-vars))))
 
            (t
