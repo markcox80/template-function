@@ -50,52 +50,46 @@
 
 ;;;; Helpers
 
-
 (defun make-name-lambda-form (prefix parameters)
-  ;; Create a lambda form which accepts argument types and returns a
-  ;; unique name.
-  (let* ((optional? (specialization-store.lambda-lists:optional-parameters-p parameters))
-         (keyword? (specialization-store.lambda-lists:keyword-parameters-p parameters))
-         (rest (specialization-store.lambda-lists:rest-parameter parameters))
-         lambda-list vars)
-    (loop
-      for required in (specialization-store.lambda-lists:required-parameters parameters)
-      for var = (specialization-store.lambda-lists:parameter-var required)
-      do
-         (push var lambda-list)
-         (push var vars))
-    (when optional?
-      (loop
-        for optional in (specialization-store.lambda-lists:optional-parameters parameters)
-        for var = (specialization-store.lambda-lists:parameter-var optional)
-        do
-           (push var lambda-list)
-           (push var vars)))
-    (when (and (not keyword?) rest)
-      (push '&rest lambda-list)
-      (let* ((var (specialization-store.lambda-lists:parameter-var rest)))
-        (push var lambda-list)
-        (push var vars)))
-    (when (specialization-store.lambda-lists:keyword-parameters-p parameters)
-      (push '&key lambda-list)
-      (loop
-        for keyword in (specialization-store.lambda-lists:keyword-parameters parameters)
-        for key = (specialization-store.lambda-lists:parameter-keyword keyword)
-        for var = (specialization-store.lambda-lists:parameter-var keyword)
-        do
-           (push (list (list key var)) lambda-list)
-           (push var vars))
-      (when (specialization-store.lambda-lists:allow-other-keys-p parameters)
-        (push '&allow-other-keys lambda-list)))
-    (cond ((or (not (specialization-store.lambda-lists:rest-parameter-p parameters))
-               (specialization-store.lambda-lists:keyword-parameters-p parameters))
-           `(lambda ,(nreverse lambda-list)
-              (name-for-types ',prefix ,@(nreverse vars))))
-          ((specialization-store.lambda-lists:rest-parameter-p parameters)
-           `(lambda ,(nreverse lambda-list)
-              (apply #'name-for-types ',prefix ,@(nreverse vars))))
-          (t
-           (error "Do not know how to process parameters of this kind.")))))
+  ;; Create a lambda form which accepts an argument-specification and
+  ;; returns a unique name.
+  (check-type prefix symbol)
+  (check-type parameters template-function.argument-specification:lambda-list-parameters)
+  (let* ((required (template-function.argument-specification:required-parameters parameters))
+         (others (template-function.argument-specification:others-parameter parameters))
+         (rest (template-function.argument-specification:rest-parameter parameters))
+         (keys? (template-function.argument-specification:keyword-parameters-p parameters))
+         (keywords (template-function.argument-specification:keyword-parameters parameters))
+         (req-vars (mapcar #'template-function.argument-specification:parameter-var required)))
+    (macroexpand-1
+     (cond ((and (not others) (not rest) (not keys?))
+            `(template-function.argument-specification:argument-specification-lambda (,@req-vars)
+               (name-for-types ',prefix ,@req-vars)))
+
+           ((and (not others) rest (not keys?))
+            (let* ((rest-var (template-function.argument-specification:parameter-var rest)))
+              `(template-function.argument-specification:argument-specification-lambda (,@req-vars &rest ,rest-var)
+                 (name-for-types ',prefix ,@req-vars ,rest-var))))
+
+           ((and others rest (not keys?))
+            (let* ((others-var (template-function.argument-specification:parameter-var others))
+                   (rest-var (template-function.argument-specification:parameter-var rest)))
+              `(template-function.argument-specification:argument-specification-lambda (,@req-vars &others ,others-var &rest ,rest-var)
+                 (apply #'name-for-types ',prefix ,@req-vars (append ,others-var (list ,rest-var))))))
+
+           ((and (not others) (not rest) keys?)
+            (let* ((key-arguments (loop
+                                    for p in keywords
+                                    for keyword = (template-function.argument-specification:parameter-keyword p)
+                                    for var = (template-function.argument-specification:parameter-var p)
+                                    for init-type = (template-function.argument-specification:parameter-init-form p)
+                                    collect `((,keyword ,var) ,init-type)))
+                   (key-vars (mapcar #'template-function.argument-specification:parameter-var keywords)))
+              `(template-function.argument-specification:argument-specification-lambda (,@req-vars &key ,@key-arguments)
+                 (name-for-types ',prefix ,@req-vars ,@key-vars))))
+
+           (t
+            (error "Do not know how to process parameters object ~A." parameters))))))
 
 (defun make-name-function (prefix parameters)
   (compile nil (make-name-lambda-form prefix parameters)))
