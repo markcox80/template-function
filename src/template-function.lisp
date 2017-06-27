@@ -176,6 +176,9 @@
            (t
             (error "Do not know how to process parameters object ~A." parameters))))))
 
+(defun make-specialization-lambda-list-function (parameters)
+  (compile nil (make-specialization-lambda-list-lambda-form parameters)))
+
 (defun make-name-function (prefix parameters)
   (compile nil (make-name-lambda-form prefix parameters)))
 
