@@ -402,3 +402,10 @@
                (declare (ignore whole a b c cp foo e))
                nil)))
     (finishes (funcall fn '(t t)))))
+
+(test argument-specification-lambda/init-forms
+  (let* ((fn (argument-specification-lambda (&whole whole a b &key (c (list a b) cp) (d (list whole c cp)))
+               (list c d)))
+         (act (funcall fn '(bit integer))))
+    (is (equal '(bit integer) (first act)))
+    (is (equal '((bit integer) (bit integer) nil) (second act)))))
