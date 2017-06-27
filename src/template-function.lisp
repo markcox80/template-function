@@ -50,6 +50,35 @@
 
 ;;;; Helpers
 
+(defun store-parameters-as-arg-spec-lambda-list (parameters)
+  (check-type parameters specialization-store.lambda-lists:parameters)
+  (let* ((required (specialization-store.lambda-lists:required-parameters parameters))
+         (optional (specialization-store.lambda-lists:optional-parameters parameters))
+         (rest (specialization-store.lambda-lists:rest-parameter parameters))
+         (keys? (specialization-store.lambda-lists:keyword-parameters-p parameters))
+         (keys (specialization-store.lambda-lists:keyword-parameters parameters))
+         (others? (specialization-store.lambda-lists:allow-other-keys-p parameters)))
+    (append (loop
+              for p in (append required optional)
+              collect (specialization-store.lambda-lists:parameter-var p))
+            (when (and rest (not keys?))
+              (list '&rest (specialization-store.lambda-lists:parameter-var rest)))
+            (when keys?
+              (append (list '&key)
+                      (loop
+                        for p in keys
+                        for keyword = (specialization-store.lambda-lists:parameter-keyword p)
+                        for var = (specialization-store.lambda-lists:parameter-var p)
+                        for init-form = (specialization-store.lambda-lists:parameter-init-form p)
+                        for init-type = (specialization-store:determine-form-value-type init-form nil)
+                        collect `((,keyword ,var) ,init-type))
+                      (when others?
+                        '(&allow-other-keys)))))))
+
+(defun store-parameters-as-arg-spec-parameters (parameters)
+  (let* ((lambda-list (store-parameters-as-arg-spec-lambda-list parameters)))
+    (template-function.argument-specification:parse-lambda-list lambda-list)))
+
 (defun make-specialization-lambda-list-lambda-form (parameters)
   ;; Create a specialization lambda list for a given
   ;; argument-specification.
