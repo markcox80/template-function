@@ -622,5 +622,23 @@
                       ,@body))))))
           (t
            (error "Do not know how to process this argument specification lambda list ~A." as-lambda-list)))))
+
+(defmacro named-argument-specification-lambda (name lambda-list &body body)
+  (let* ((lambda-form (macroexpand-1 `(argument-specification-lambda ,lambda-list
+                                        ,@body))))
+    `(flet ((,name ,(second lambda-form)
+              ,@(nthcdr 2 lambda-form)))
+       (function ,name))))
+
+(defmacro defun/argument-specification (name lambda-list &body body)
+  (let* ((lambda-form (macroexpand-1 `(argument-specification-lambda ,lambda-list
+                                        ,@body))))
+    `(defun ,name ,(second lambda-form)
+       ,@(nthcdr 2 lambda-form))))
+
+(defmacro destructuring-argument-specification (lambda-list argument-specification &body body)
+  `(funcall (argument-specification-lambda ,lambda-list
+              ,@body)
+            ,argument-specification))
 
 ;;;; destructure-argument-specification

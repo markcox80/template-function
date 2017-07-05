@@ -1,6 +1,13 @@
 (defpackage "TEMPLATE-FUNCTION"
   (:use "COMMON-LISP")
 
+  ;; Argument specification
+  (:export "&OTHERS"
+           "ARGUMENT-SPECIFICATION-LAMBDA"
+           "NAMED-ARGUMENT-SPECIFICATION-LAMBDA"
+           "DESTRUCTURING-ARGUMENT-SPECIFICATION"
+           "DEFUN/ARGUMENT-SPECIFICATION")
+
   ;; Object Layer
   (:export "TEMPLATE-FUNCTION-CLASS"
            "TEMPLATE-FUNCTION"
@@ -38,13 +45,16 @@
   (:export "DEFINE-TEMPLATE-USING-OBJECT"
            "DEFINE-TEMPLATE"
            "REQUIRE-INSTANTIATION"
-           "REQUIRE-INSTANTIATIONS"
-           "&OTHERS"))
+           "REQUIRE-INSTANTIATIONS"))
 
 (defpackage "TEMPLATE-FUNCTION.ARGUMENT-SPECIFICATION"
   (:use "COMMON-LISP")
   (:import-from "TEMPLATE-FUNCTION"
-                "&OTHERS")
+                "&OTHERS"
+                "ARGUMENT-SPECIFICATION-LAMBDA"
+                "NAMED-ARGUMENT-SPECIFICATION-LAMBDA"
+                "DESTRUCTURING-ARGUMENT-SPECIFICATION"
+                "DEFUN/ARGUMENT-SPECIFICATION")
 
   ;; Parameter Protocol
   (:export "PARAMETER"
@@ -86,6 +96,8 @@
 
   ;; argument-specification-lambda
   (:export "ARGUMENT-SPECIFICATION-LAMBDA"
-           "ARGUMENT-SPECIFICATION-LAMBDA-ERROR"))
+           "ARGUMENT-SPECIFICATION-LAMBDA-ERROR"
+           "NAMED-ARGUMENT-SPECIFICATION-LAMBDA"
+           "DEFUN/ARGUMENT-SPECIFICATION"))
 
 (defpackage "TEMPLATE-FUNCTION.NAMES")
