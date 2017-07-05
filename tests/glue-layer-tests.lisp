@@ -1,9 +1,9 @@
 (glue-layer-test basic
   (eval-when (:compile-toplevel :load-toplevel)
-    (defun example-function-type (x y alpha)
+    (template-function:defun/argument-specification example-function-type (x y alpha)
       `(function (,x ,y ,alpha) ,y))
 
-    (defun example-lambda-form (<x> <y> <alpha>)
+    (template-function:defun/argument-specification example-lambda-form (<x> <y> <alpha>)
       `(lambda (x y alpha)
          (check-type x ,<x>)
          (check-type y ,<y>)
@@ -27,7 +27,7 @@
 
 (glue-layer-test recursion
   (eval-when (:compile-toplevel :load-toplevel)
-    (defun random-product-lambda-form (<number> <limit>)
+    (template-function:defun/argument-specification random-product-lambda-form (<number> <limit>)
       `(lambda (start limit)
          (check-type start ,<number>)
          (check-type limit ,<limit>)
@@ -36,7 +36,7 @@
              (0 value)
              (1 (random-product (the real value) (the ,<limit> limit)))))))
 
-    (defun random-product-function-type (number limit)
+    (template-function:defun/argument-specification random-product-function-type (number limit)
       `(function (,number ,limit) real))
 
     (template-function:ensure-template-function 'random-product '(number limit)

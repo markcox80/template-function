@@ -1,6 +1,8 @@
 (defpackage "TEMPLATE-FUNCTION.TESTS"
   (:use "COMMON-LISP"
         "FIVEAM")
+  (:import-from "TEMPLATE-FUNCTION"
+                "&OTHERS")
   (:export "ALL-TEMPLATE-FUNCTION-TESTS"))
 
 (defpackage "TEMPLATE-FUNCTION.ARGUMENT-SPECIFICATION.TESTS"

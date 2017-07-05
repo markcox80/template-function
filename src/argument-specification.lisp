@@ -495,7 +495,7 @@
       (signal-too-few-required-values-error arg-spec as-lambda-list))
     (when (or (/= 2 (length rest))
               (eql '&rest rest-type))
-      (signal-malformed-argument-specification-error arg-spec as-lambda-list))
+      (signal-invalid-argument-specification-error arg-spec as-lambda-list))
     (values rest-type rest-pos)))
 
 ;; arg-spec must contain required-count values with an optional rest
@@ -519,7 +519,7 @@
                            (null (cddr arg-spec-rest)))
                       (second arg-spec-rest))
                      (t
-                      (signal-malformed-argument-specification-error arg-spec as-lambda-list))))))
+                      (signal-invalid-argument-specification-error arg-spec as-lambda-list))))))
 
 ;; arg-spec must contain required-count values with a keyword section.
 (defun %asl/check-keys (arg-spec required-count as-lambda-list keywords storage allow-other-keys)
@@ -622,5 +622,23 @@
                       ,@body))))))
           (t
            (error "Do not know how to process this argument specification lambda list ~A." as-lambda-list)))))
+
+(defmacro named-argument-specification-lambda (name lambda-list &body body)
+  (let* ((lambda-form (macroexpand-1 `(argument-specification-lambda ,lambda-list
+                                        ,@body))))
+    `(flet ((,name ,(second lambda-form)
+              ,@(nthcdr 2 lambda-form)))
+       (function ,name))))
+
+(defmacro defun/argument-specification (name lambda-list &body body)
+  (let* ((lambda-form (macroexpand-1 `(argument-specification-lambda ,lambda-list
+                                        ,@body))))
+    `(defun ,name ,(second lambda-form)
+       ,@(nthcdr 2 lambda-form))))
+
+(defmacro destructuring-argument-specification (lambda-list argument-specification &body body)
+  `(funcall (argument-specification-lambda ,lambda-list
+              ,@body)
+            ,argument-specification))
 
 ;;;; destructure-argument-specification
