@@ -1,6 +1,6 @@
 (syntax-layer-test basic/required
   (eval-when (:compile-toplevel :load-toplevel :execute)
-    (defun make-lambda-form (<x> <y> <alpha>)
+    (template-function:defun/argument-specification make-lambda-form (<x> <y> <alpha>)
       `(lambda (x y alpha)
          (check-type x ,<x>)
          (check-type y ,<y>)
@@ -9,7 +9,7 @@
            (incf (elt y i) (* alpha (elt x i))))
          y))
 
-    (defun make-function-type (x y alpha)
+    (template-function:defun/argument-specification make-function-type (x y alpha)
       `(function (,x ,y ,alpha) ,y)))
 
   (template-function:define-template xpy (x y alpha)
@@ -44,9 +44,10 @@
       (signals error (xpy x))
       (signals error (xpy x x 1 2)))))
 
+#- (and)
 (syntax-layer-test basic/optional
   (eval-when (:compile-toplevel :load-toplevel :execute)
-    (defun make-lambda-form (<x> <y> &optional (<alpha> 'number))
+    (template-function:defun/argument-specification make-lambda-form (<x> <y> <alpha>)
       `(lambda (x y alpha)
          (check-type x ,<x>)
          (check-type y ,<y>)
@@ -55,7 +56,7 @@
            (incf (elt y i) (* alpha (elt x i))))
          y))
 
-    (defun make-function-type (x y &optional (alpha 'number))
+    (template-function:defun/argument-specification make-function-type (x y &optional (alpha 'number))
       `(function (,x ,y &optional ,alpha) ,y))
 
     (defun make-type-completion-function (continuation)
@@ -107,7 +108,7 @@
 
 (syntax-layer-test basic/keywords
   (eval-when (:compile-toplevel :load-toplevel :execute)
-    (defun make-lambda-form (<x> <y> &key ((:alpha <alpha>)))
+    (template-function:defun/argument-specification make-lambda-form (<x> <y> &key ((:alpha <alpha>)))
       `(lambda (x y &key alpha)
          (check-type x ,<x>)
          (check-type y ,<y>)
@@ -116,7 +117,7 @@
            (incf (elt y i) (* alpha (elt x i))))
          y))
 
-    (defun make-function-type (x y &key (alpha 'number))
+    (template-function:defun/argument-specification make-function-type (x y &key (alpha 'number))
       `(function (,x ,y &key (:alpha ,alpha)) ,y))
 
     (defun make-type-completion-function (continuation)
@@ -131,18 +132,18 @@
         (:type-completion-function #'make-type-completion-function))))
 
   (template-function:require-instantiations (xpy (array array)
-                                                 (array array :alpha real)
+                                                 (array array &key (:alpha real))
                                                  (list list)
-                                                 (list list :alpha real)))
+                                                 (list list &key (:alpha real))))
 
   (test global-environment
     (is-true (fboundp 'xpy))
-    (flet ((check (&rest types)
-             (is-true (fboundp (template-function:compute-name 'xpy types)))))
-      (check 'array 'array)
-      (check 'array 'array :alpha 'real)
-      (check 'list 'list)
-      (check 'list 'list :alpha 'real)))
+    (flet ((check (argument-specification)
+             (is-true (fboundp (template-function:compute-name 'xpy argument-specification)))))
+      (check '(array array))
+      (check '(array array &key (:alpha real)))
+      (check '(list list))
+      (check '(list list &key (:alpha real)))))
 
   (test usage
     (let* ((x (make-array 5 :initial-contents '(1 2 3 4 5)))
@@ -175,35 +176,40 @@
 
 (syntax-layer-test basic/rest
   (eval-when (:compile-toplevel :load-toplevel :execute)
-    (defun make-lambda-form (&rest <args>)
-      (let* ((vars (alexandria:make-gensym-list (length <args>))))
-        `(lambda (,@vars)
+    (template-function:defun/argument-specification make-lambda-form (&others <others> &rest <rest>)
+      (let* ((vars (alexandria:make-gensym-list (length <others>)))
+             (args (gensym "ARGS")))
+        `(lambda (,@vars &rest ,args)
            ,@(loop
                for var in vars
-               for <arg> in <args>
-               collect `(check-type ,var ,<arg>))
-           (+ ,@vars))))
+               for <other> in <others>
+               collect `(check-type ,var ,<other>))
+           (dolist (arg ,args)
+             (check-type arg ,<rest>))
+           (reduce #'+ ,args :initial-value (+ ,@vars)))))
 
-    (defun make-function-type (&rest args)
-      `(function ,args number))
+    (template-function:defun/argument-specification make-function-type (&others <others> &rest <args>)
+      `(function (,@<others> &rest ,<args>) number))
 
     (template-function:define-template add (&rest args)
       (:lambda-form-function #'make-lambda-form)
       (:function-type-function #'make-function-type))
 
-    (template-function:require-instantiations (add (double-float double-float))
-                                              (add (integer integer integer))))
+    (template-function:require-instantiations (add (double-float double-float &rest double-float))
+                                              (add (integer integer integer &rest integer))))
 
   (test global-environment
     (is-true (fboundp 'add))
-    (flet ((check (&rest types)
-             (is-true (fboundp (template-function:compute-name 'add types)))))
-      (check 'double-float 'double-float)
-      (check 'integer 'integer 'integer)))
+    (flet ((check (argument-specification)
+             (is-true (fboundp (template-function:compute-name 'add argument-specification)))))
+      (check '(double-float double-float &rest double-float))
+      (check '(integer integer integer &rest integer))))
 
   (test usage
     (is (= 11d0 (add 5d0 6d0)))
     (is (= 1 (add 100 -50 -49)))
+    (let* ((args '(5d0 6d0 7d0)))
+      (is (= 18d0 (apply #'add args))))
 
-    (signals error (add 1d0))
-    (signals error (add 1 2 3 4))))
+    (signals error (add 1d0 2))
+    (signals error (add 1 2 3 4d0))))

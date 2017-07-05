@@ -16,11 +16,11 @@
 
 (defstruct record
   template-function
-  argument-types)
+  argument-specification)
 
-(defun note-template-function (template-function argument-types)
+(defun note-template-function (template-function argument-specification)
   (push (make-record :template-function template-function
-                     :argument-types argument-types)
+                     :argument-specification argument-specification)
         *records*))
 
 ;; Template functions that have been processed i.e. the template has
@@ -30,25 +30,83 @@
 
 (defstruct instantiation
   template-function
-  argument-types
+  argument-specification
   name
   lambda-form
   function
   function-type)
 
-(defun processed-template-function-p (template-function argument-types)
+(defun processed-template-function-p (template-function argument-specification)
   (find-if #'(lambda (instantiation)
                (and (eql (instantiation-template-function instantiation)
                          template-function)
-                    (equalp (instantiation-argument-types instantiation)
-                            argument-types)))
+                    (equalp (instantiation-argument-specification instantiation)
+                            argument-specification)))
            *processed*))
 
 (defun processed-record-p (record)
   (processed-template-function-p (record-template-function record)
-                                 (record-argument-types record)))
+                                 (record-argument-specification record)))
 
 ;;;; Helpers
+
+(defun %complete-argument-specification (store-parameters type-completion-function argument-specification)
+  (let* ((required (specialization-store.lambda-lists:required-parameters store-parameters))
+         (optional (specialization-store.lambda-lists:optional-parameters store-parameters))
+         (positional-count (+ (length required) (length optional)))
+         (rest (specialization-store.lambda-lists:rest-parameter store-parameters))
+         (keys? (specialization-store.lambda-lists:keyword-parameters-p store-parameters)))
+    (labels ((to-argument-specification (completed-forms)
+               (append (subseq completed-forms 0 positional-count)
+                       (when keys?
+                         (cons '&key
+                               (loop
+                                 for (keyword type) on (nthcdr positional-count completed-forms) by #'cddr
+                                 collect (list keyword type))))))
+             (to-form-types (argument-specification)
+               (let* ((length (length argument-specification)))
+                 (append (subseq argument-specification 0 (min positional-count length))
+                         (when (>= length positional-count)
+                           (let* ((key-section (nthcdr positional-count argument-specification)))
+                             (cond ((null key-section)
+                                    nil)
+                                   ((eql '&key (first key-section))
+                                    (loop
+                                      for (keyword type) in (rest key-section)
+                                      append (list keyword type)))
+                                   (t
+                                    (error "Invalid argument specification ~A for store parameters ~A."
+                                           argument-specification
+                                           (specialization-store.lambda-lists:original-lambda-list store-parameters))))))))))
+      (cond ((and (not keys?) optional rest)
+             (error "Cannot complete argument specification for functions which specify optional parameters and a rest parameter."))
+            ((and (not keys?) (null optional))
+             ;; Nothing to do
+             argument-specification)
+            (t
+             (let* ((fn (funcall type-completion-function (lambda (&rest args)
+                                                             args)))
+                    (form-types (to-form-types argument-specification))
+                    (completed-form-types (apply fn form-types)))
+               (to-argument-specification completed-form-types)))))))
+
+(defun make-argument-specification-completion-function (store-parameters type-completion-function)
+  (let* ((optional (specialization-store.lambda-lists:optional-parameters store-parameters))
+         (rest (specialization-store.lambda-lists:rest-parameter store-parameters))
+         (keys? (specialization-store.lambda-lists:keyword-parameters-p store-parameters)))
+    (cond ((and (not keys?) optional rest)
+           (error "A user supplied argument specification completion function is required for template functions which specify optional and rest parameters."))
+          ((and (not keys?) (null optional))
+           (lambda (continuation)
+             (lambda (argument-specification)
+               (funcall continuation argument-specification))))
+          (t
+           (lambda (continuation)
+             (lambda (argument-specification)
+               (funcall continuation
+                        (%complete-argument-specification store-parameters
+                                                          type-completion-function
+                                                          argument-specification))))))))
 
 (defun store-parameters-as-arg-spec-lambda-list (parameters)
   (check-type parameters specialization-store.lambda-lists:parameters)
@@ -62,7 +120,8 @@
               for p in (append required optional)
               collect (specialization-store.lambda-lists:parameter-var p))
             (when (and rest (not keys?))
-              (list '&rest (specialization-store.lambda-lists:parameter-var rest)))
+              (list '&others (gensym "OTHERS")
+                    '&rest (specialization-store.lambda-lists:parameter-var rest)))
             (when keys?
               (append (list '&key)
                       (loop
@@ -95,17 +154,17 @@
                         collect `(list ',var ,var))))
     (macroexpand-1
      (cond ((and (not others) (not rest) (not keys?))
-            `(template-function.argument-specification:argument-specification-lambda (,@req-vars)
+            `(template-function:argument-specification-lambda (,@req-vars)
                (list ,@req-section)))
            ((and (not others) rest (not keys?))
             (let* ((rest-var (template-function.argument-specification:parameter-var rest)))
-              `(template-function.argument-specification:argument-specification-lambda (,@req-vars &rest ,rest-var)
+              `(template-function:argument-specification-lambda (,@req-vars &rest ,rest-var)
                  (list ,@req-section '&rest (list ',rest-var ,rest-var)))))
            ((and others rest (not keys?))
             (let* ((others-var (template-function.argument-specification:parameter-var others))
                    (rest-var (template-function.argument-specification:parameter-var rest)))
               (alexandria:with-gensyms (o-vars)
-                `(template-function.argument-specification:argument-specification-lambda (,@req-vars &others ,others-var &rest ,rest-var)
+                `(template-function:argument-specification-lambda (,@req-vars &others ,others-var &rest ,rest-var)
                    (let* ((,o-vars (alexandria:make-gensym-list (length ,others-var))))
                      (append (list ,@req-section)
                              (mapcar #'(lambda (name type)
@@ -118,7 +177,7 @@
                                      for keyword = (template-function.argument-specification:parameter-keyword p)
                                      for var = (template-function.argument-specification:parameter-var p)
                                      for init-type = (template-function.argument-specification:parameter-init-form p)
-                                     collect `((,keyword ,var) ,init-type)))
+                                     collect `((,keyword ,var) ',init-type)))
                    (other-keywords (when allow-other-keys?
                                      '(&allow-other-keys)))
                    (keys-section (loop
@@ -126,7 +185,7 @@
                                    for keyword = (template-function.argument-specification:parameter-keyword p)
                                    for var = (template-function.argument-specification:parameter-var p)
                                    collect `(list (list ',keyword ',var) ,var))))
-              `(template-function.argument-specification:argument-specification-lambda (,@req-vars &key ,@keys-arguments ,@other-keywords)
+              `(template-function:argument-specification-lambda (,@req-vars &key ,@keys-arguments ,@other-keywords)
                  (append (list ,@req-section)
                          (list '&key ,@keys-section)))))
            (t
@@ -166,7 +225,7 @@
                                     for keyword = (template-function.argument-specification:parameter-keyword p)
                                     for var = (template-function.argument-specification:parameter-var p)
                                     for init-type = (template-function.argument-specification:parameter-init-form p)
-                                    collect `((,keyword ,var) ,init-type)))
+                                    collect `((,keyword ,var) ',init-type)))
                    (other-keywords (when allow-other-keys?
                                      '(&allow-other-keys)))
                    (key-vars (mapcar #'template-function.argument-specification:parameter-var keywords)))
@@ -197,28 +256,34 @@
 (defgeneric function-type-function (template-function))
 (defgeneric type-completion-function (template-function))
 (defgeneric value-completion-function (template-function))
-(defgeneric store (template-function))
-(defgeneric parameters (template-function))
+(defgeneric argument-specification-completion-function (template-function))
 
-(defgeneric compute-name (template-function argument-types))
-(defgeneric compute-lambda-form (template-function argument-types))
-(defgeneric compute-function-type (template-function argument-types))
-(defgeneric compute-name* (template-function &rest argument-types))
-(defgeneric compute-lambda-form* (template-function &rest argument-types))
-(defgeneric compute-function-type* (template-function &rest argument-types))
-(defgeneric complete-argument-types (template-function argument-types))
-(defgeneric complete-argument-types* (template-function &rest argument-types))
+(defgeneric compute-name (template-function argument-specification))
+(defgeneric compute-lambda-form (template-function argument-specification))
+(defgeneric compute-function-type (template-function argument-specification))
+(defgeneric compute-specialization-lambda-list (template-function argument-specification))
+(defgeneric compute-name* (template-function &rest argument-specification))
+(defgeneric compute-lambda-form* (template-function &rest argument-specification))
+(defgeneric compute-function-type* (template-function &rest argument-specification))
+(defgeneric compute-specialization-lambda-list (template-function argument-specification))
+(defgeneric complete-argument-specification (template-function argument-specification))
+(defgeneric complete-argument-specification* (template-function &rest argument-specification))
 
 (defgeneric funcall-template-function (template-function &rest arguments))
 (defgeneric apply-template-function (template-function &rest arguments))
 (defgeneric expand-template-function (template-function form &optional environment))
-(defgeneric compute-form-argument-types (template-function form &optional environment))
+(defgeneric compute-form-argument-specification (template-function form &optional environment))
 (defgeneric make-template-function-unbound (template-function))
 
-(defgeneric ensure-instantiation (template-function argument-types))
-(defgeneric ensure-instantiation* (template-function &rest argument-types))
-(defgeneric find-instantiation (template-function argument-types))
-(defgeneric find-instantiation* (template-function &rest argument-types))
+(defgeneric ensure-instantiation (template-function argument-specification))
+(defgeneric ensure-instantiation* (template-function &rest argument-specification))
+(defgeneric find-instantiation (template-function argument-specification))
+(defgeneric find-instantiation* (template-function &rest argument-specification))
+
+(defgeneric store (template-function))
+(defgeneric store-parameters (template-function))
+(defgeneric argument-specification-parameters (template-function))
+(defgeneric specialization-lambda-list-function (template-function))
 
 (defgeneric define-template-using-object (template-class
                                           &key
@@ -253,44 +318,64 @@
                                :reader value-completion-function)
    (%type-completion-function :initarg :type-completion-function
                               :reader type-completion-function)
+   (%argument-specification-completion-function :initarg :argument-specification-completion-function
+                                                :reader argument-specification-completion-function)
+   (%specialization-lambda-list-function :initarg :specialization-lambda-list-function
+                                         :reader specialization-lambda-list-function)
    (%store :initarg :store
            :reader store)
-   (%parameters :initarg :parameters
-                :reader parameters))
+   (%store-parameters :initarg :store-parameters
+                      :reader store-parameters)
+   (%argument-specification-parameters :initarg :argument-specification-parameters
+                                       :reader argument-specification-parameters))
   (:metaclass template-function-class))
 
 (defmethod initialize-instance :after ((instance template-function) &key)
-  ;; Initialise %parameters
-  (with-slots (%parameters %lambda-list) instance
-    (setf %parameters (specialization-store.lambda-lists:parse-store-lambda-list %lambda-list)))
+  ;; Initialise %store-parameters and %argument-specification-parameters)
+  (with-slots (%lambda-list %store-parameters %argument-specification-parameters) instance
+    (setf %store-parameters (specialization-store.lambda-lists:parse-store-lambda-list %lambda-list)
+          %argument-specification-parameters (store-parameters-as-arg-spec-parameters %store-parameters)))
 
   ;; Initialise %value-completion-function
-  (with-slots (%value-completion-function %parameters) instance
+  (with-slots (%value-completion-function %store-parameters) instance
     (unless (and (slot-boundp instance '%value-completion-function)
                  %value-completion-function)
-      (setf %value-completion-function (make-value-completion-function %parameters))))
+      (setf %value-completion-function (make-value-completion-function %store-parameters))))
 
   ;; Initialise %type-completion-function
-  (with-slots (%type-completion-function %parameters) instance
+  (with-slots (%type-completion-function %store-parameters) instance
     (unless (and (slot-boundp instance '%type-completion-function)
                  %type-completion-function)
-      (setf %type-completion-function (make-type-completion-function %parameters))))
+      (setf %type-completion-function (make-type-completion-function %store-parameters))))
+
+  ;; Initialise %argument-specification-completion-function
+  (with-slots (%argument-specification-completion-function %type-completion-function %store-parameters) instance
+    (unless (and (slot-boundp instance '%argument-specification-completion-function)
+                 %argument-specification-completion-function)
+      (setf %argument-specification-completion-function
+            (make-argument-specification-completion-function %store-parameters
+                                                             %type-completion-function))))
+
+  ;; Initialise %specialization-lambda-list-function
+  (with-slots (%specialization-lambda-list-function %argument-specification-parameters) instance
+    (setf %specialization-lambda-list-function
+          (make-specialization-lambda-list-function %argument-specification-parameters)))
 
   ;; Initialise %name-function
-  (with-slots (%name-function %parameters %name) instance
+  (with-slots (%name-function %argument-specification-parameters %name) instance
     (unless (and (slot-boundp instance '%name-function)
                  %name-function)
-      (setf %name-function (make-name-function %name %parameters))))
+      (setf %name-function (make-name-function %name %argument-specification-parameters))))
 
   ;; Initialise the store
-  (with-slots (%store %value-completion-function %type-completion-function %lambda-list %parameters) instance
+  (with-slots (%store %value-completion-function %type-completion-function %lambda-list %store-parameters) instance
     (unless (and (slot-boundp instance '%store)
                  %store)
       (setf %store (make-instance 'specialization-store:standard-store
                                   :type-completion-function (type-completion-function instance)
                                   :value-completion-function (value-completion-function instance)
                                   :lambda-list %lambda-list
-                                  :parameters %parameters))))
+                                  :parameters %store-parameters))))
 
   (with-slots (%store) instance
     (specialization-store.mop:set-funcallable-instance-function instance %store)))
@@ -310,9 +395,9 @@
 
   ;; Ensure the new lambda list is congruent with the old lambda list.
   (when lambda-list-p
-    (with-slots (%lambda-list %parameters) instance
+    (with-slots (%lambda-list %store-parameters) instance
       (let* ((new-parameters (specialization-store.lambda-lists:parse-store-lambda-list lambda-list)))
-        (unless (specialization-store.lambda-lists:congruent-parameters-p new-parameters %parameters)
+        (unless (specialization-store.lambda-lists:congruent-parameters-p new-parameters %store-parameters)
           (error "The new lambda list ~A is not congruent with the existing lambda list ~A."
                  lambda-list %lambda-list))))))
 
@@ -320,17 +405,25 @@
                                          &key
                                            (lambda-list nil lambda-list-p)
                                            type-completion-function
-                                           value-completion-function)
+                                           value-completion-function
+                                           argument-specification-completion-function)
   (when lambda-list-p
     (let* ((new-parameters (specialization-store.lambda-lists:parse-store-lambda-list lambda-list)))
-      (with-slots (%parameters) instance
-        (setf %parameters new-parameters))
+      (with-slots (%store-parameters %argument-specification-parameters) instance
+        (setf %store-parameters new-parameters
+              %argument-specification-parameters (store-parameters-as-arg-spec-parameters %store-parameters)))
 
       (unless value-completion-function
         (setf (slot-value instance '%value-completion-function) (make-value-completion-function new-parameters)))
 
       (unless type-completion-function
         (setf (slot-value instance '%type-completion-function) (make-type-completion-function new-parameters)))))
+
+  (when (and (or lambda-list-p type-completion-function)
+             (not argument-specification-completion-function))
+    (setf (slot-value instance '%argument-specification-completion-function)
+          (make-argument-specification-completion-function (store-parameters instance)
+                                                           (type-completion-function instance))))
 
   (with-slots (%store %lambda-list %type-completion-function %value-completion-function) instance
     (reinitialize-instance %store
@@ -348,10 +441,10 @@
   (cond ((instantiatingp)
          ;; This code is invoked when an instantiation of template
          ;; function is calling another template function.
-         (let* ((argument-types (compute-form-argument-types template-function form environment))
-                (function-type (compute-function-type template-function argument-types))
-                (instantiation-name (compute-name template-function argument-types)))
-           (unless (processed-template-function-p template-function argument-types)
+         (let* ((argument-specification (compute-form-argument-specification template-function form environment))
+                (function-type (compute-function-type template-function argument-specification))
+                (instantiation-name (compute-name template-function argument-specification)))
+           (unless (processed-template-function-p template-function argument-specification)
              ;; Insert a dummy function so that the compiler doesn't
              ;; complain about a missing function definition.
              (fmakunbound instantiation-name)
@@ -359,7 +452,7 @@
                                                       (declare (ignore args))
                                                       nil))
              (proclaim `(ftype ,function-type ,instantiation-name))
-             (note-template-function template-function argument-types))
+             (note-template-function template-function argument-specification))
            (cons instantiation-name (specialization-store:compiler-macro-form-arguments form))))
         (t
          (specialization-store:expand-store (store template-function) form environment))))
@@ -370,44 +463,73 @@
     (setf (compiler-macro-function name) nil)
     (fmakunbound name)))
 
-(defmethod complete-argument-types ((template-function template-function) argument-types)
-  (apply (funcall (type-completion-function template-function)
-                  (lambda (&rest args)
-                    args))
-         argument-types))
+(defmethod compute-name ((template-function template-function) argument-specification)
+  (funcall (name-function template-function)
+           (complete-argument-specification template-function argument-specification)))
 
-(defmethod compute-name ((template-function template-function) argument-types)
-  (apply (name-function template-function)
-         (complete-argument-types template-function argument-types)))
+(defmethod compute-lambda-form ((template-function template-function) argument-specification)
+  (funcall (lambda-form-function template-function)
+           (complete-argument-specification template-function argument-specification)))
 
-(defmethod compute-lambda-form ((template-function template-function) argument-types)
-  (apply (lambda-form-function template-function)
-         (complete-argument-types template-function argument-types)))
+(defmethod compute-function-type ((template-function template-function) argument-specification)
+  (funcall (function-type-function template-function)
+           (complete-argument-specification template-function argument-specification)))
 
-(defmethod compute-function-type ((template-function template-function) argument-types)
-  (apply (function-type-function template-function)
-         (complete-argument-types template-function argument-types)))
+(defmethod compute-specialization-lambda-list ((template-function template-function) argument-specification)
+  (funcall (specialization-lambda-list-function template-function)
+           (complete-argument-specification template-function argument-specification)))
 
-(defmethod complete-argument-types* ((template-function template-function) &rest argument-types)
-  (complete-argument-types template-function argument-types))
+(defmethod compute-name* ((template-function template-function) &rest argument-specification)
+  (compute-name template-function argument-specification))
 
-(defmethod compute-name* ((template-function template-function) &rest argument-types)
-  (compute-name template-function argument-types))
+(defmethod compute-lambda-form* ((template-function template-function) &rest argument-specification)
+  (compute-lambda-form template-function argument-specification))
 
-(defmethod compute-lambda-form* ((template-function template-function) &rest argument-types)
-  (compute-lambda-form template-function argument-types))
+(defmethod compute-function-type* ((template-function template-function) &rest argument-specification)
+  (compute-function-type template-function argument-specification))
 
-(defmethod compute-function-type* ((template-function template-function) &rest argument-types)
-  (compute-function-type template-function argument-types))
+(defmethod compute-specialization-lambda-list* ((template-function template-function) &rest argument-specification)
+  (compute-specialization-lambda-list template-function argument-specification))
 
-(defmethod compute-form-argument-types ((template-function template-function) form &optional environment)
-  (let* ((form-types-fn (slot-value (store template-function) 'specialization-store.standard-store::form-types-function))
-         (type-completion-fn (specialization-store:store-type-completion-function (store template-function)))
-         (fn (funcall form-types-fn
-                      (funcall type-completion-fn
-                               (lambda (&rest args)
-                                 args)))))
-    (funcall fn form environment)))
+(defmethod compute-form-argument-specification ((parameters specialization-store.lambda-lists:parameters) form &optional environment)
+  (let* ((arguments (specialization-store:compiler-macro-form-arguments form))
+         (required (specialization-store.lambda-lists:required-parameters parameters))
+         (optional (specialization-store.lambda-lists:optional-parameters parameters))
+         (keys? (specialization-store.lambda-lists:keyword-parameters-p parameters)))
+    (cond ((not keys?)
+           (loop
+             for arg in arguments
+             collect (specialization-store:determine-form-value-type arg environment)))
+          (t
+           (let* ((positional-count (+ (length required) (length optional)))
+                  (positional-args (subseq arguments 0 positional-count))
+                  (keyword-args (subseq arguments positional-count)))
+             (unless (zerop (mod (length keyword-args) 2))
+               (error "The length of the keyword arguments in form ~A is not even." form))
+             (append (loop
+                       for arg in positional-args
+                       collect (specialization-store:determine-form-value-type arg environment))
+                     (cons '&key
+                           (loop
+                             for (keyword arg) on keyword-args by #'cddr
+                             if (constantp keyword environment)
+                               collect (list (introspect-environment:constant-form-value keyword environment)
+                                             (specialization-store:determine-form-value-type arg environment))
+                             else do
+                               (warn "Unable to determine the keyword value ~A in the form ~A." keyword form)))))))))
+
+(defmethod compute-form-argument-specification ((template-function template-function) form &optional environment)
+  (complete-argument-specification template-function
+                                   (compute-form-argument-specification (store-parameters template-function)
+                                                                        form environment)))
+
+(defmethod complete-argument-specification ((template-function template-function) argument-specification)
+  (let* ((fn (funcall (argument-specification-completion-function template-function)
+                      #'identity)))
+    (funcall fn argument-specification)))
+
+(defmethod complete-argument-specification* ((template-function template-function) &rest argument-specification)
+  (complete-argument-specification template-function argument-specification))
 
 ;;;; Glue Layer (Template Function)
 
@@ -447,33 +569,33 @@
                                            (expand-template-function template-function form environment)))
     template-function))
 
-(defmethod compute-name ((name symbol) argument-types)
-  (compute-name (find-template-function name) argument-types))
+(defmethod compute-name ((name symbol) argument-specification)
+  (compute-name (find-template-function name) argument-specification))
 
-(defmethod compute-name* ((name symbol) &rest argument-types)
-  (compute-name (find-template-function name) argument-types))
+(defmethod compute-name* ((name symbol) &rest argument-specification)
+  (compute-name (find-template-function name) argument-specification))
 
-(defmethod compute-function-type ((name symbol) argument-types)
-  (compute-function-type (find-template-function name) argument-types))
+(defmethod compute-function-type ((name symbol) argument-specification)
+  (compute-function-type (find-template-function name) argument-specification))
 
-(defmethod compute-function-type* ((name symbol) &rest argument-types)
-  (compute-function-type (find-template-function name) argument-types))
+(defmethod compute-function-type* ((name symbol) &rest argument-specification)
+  (compute-function-type (find-template-function name) argument-specification))
 
 ;;;; Glue Layer (Instantiation requests)
 
 (defun %ensure-instantiations (requests)
-  (labels ((process (template-function argument-types)
-             (multiple-value-bind (lambda-form function-type) (compute-lambda-form template-function argument-types)
+  (labels ((process (template-function argument-specification)
+             (multiple-value-bind (lambda-form function-type) (compute-lambda-form template-function argument-specification)
                (let* ((function-type (or function-type
-                                         (compute-function-type template-function argument-types)))
-                      (name (compute-name template-function argument-types))
+                                         (compute-function-type template-function argument-specification)))
+                      (name (compute-name template-function argument-specification))
                       (wrapper-fn (compile nil `(lambda ()
                                                   (alexandria:named-lambda ,name ,@(rest lambda-form)))))
                       (function (funcall wrapper-fn))
                       (expand-function (specialization-store:compiler-macro-lambda (&rest args)
                                          `(the ,(third function-type) (,name ,@args))))
-                      (specialization-lambda-list (make-specialization-lambda-list (parameters template-function)
-                                                                                   argument-types))
+                      (specialization-lambda-list (compute-specialization-lambda-list template-function
+                                                                                      argument-specification))
                       (specialization (make-instance 'specialization-store:standard-specialization
                                                      :lambda-list specialization-lambda-list
                                                      :value-type (third function-type)
@@ -485,16 +607,16 @@
                  (setf (fdefinition name) function)
                  (proclaim `(ftype ,function-type ,name))
                  (make-instantiation :template-function template-function
-                                     :argument-types argument-types
+                                     :argument-specification argument-specification
                                      :name name
                                      :lambda-form lambda-form
                                      :function-type function-type
                                      :function function)))))
     (let* ((*instantiating* t)
            (*records* (loop
-                        for (template-function argument-types) in requests
+                        for (template-function argument-specification) in requests
                         collect (make-record :template-function template-function
-                                             :argument-types argument-types)))
+                                             :argument-specification argument-specification)))
            (*processed* nil))
       (loop
         for record = (pop *records*)
@@ -502,32 +624,32 @@
         unless (processed-record-p record)
           do
              (push (process (record-template-function record)
-                            (record-argument-types record))
+                            (record-argument-specification record))
                    *processed*))
       *processed*)))
 
-(defun %ensure-instantiation (template-function argument-types)
-  (%ensure-instantiations (list (list template-function argument-types))))
+(defun %ensure-instantiation (template-function argument-specification)
+  (%ensure-instantiations (list (list template-function argument-specification))))
 
-(defmethod ensure-instantiation ((template-function template-function) argument-types)
-  (%ensure-instantiation template-function argument-types))
+(defmethod ensure-instantiation ((template-function template-function) argument-specification)
+  (%ensure-instantiation template-function argument-specification))
 
-(defmethod ensure-instantiation ((name symbol) argument-types)
-  (ensure-instantiation (find-template-function name) argument-types))
+(defmethod ensure-instantiation ((name symbol) argument-specification)
+  (ensure-instantiation (find-template-function name) argument-specification))
 
-(defmethod ensure-instantiation* ((name symbol) &rest argument-types)
-  (ensure-instantiation name argument-types))
+(defmethod ensure-instantiation* ((name symbol) &rest argument-specification)
+  (ensure-instantiation name argument-specification))
 
-(defmethod ensure-instantiation* ((template-function template-function) &rest argument-types)
-  (%ensure-instantiation template-function argument-types)
+(defmethod ensure-instantiation* ((template-function template-function) &rest argument-specification)
+  (%ensure-instantiation template-function argument-specification)
   (values))
 
-(defun %install-instantiation (template-function-name argument-types function)
+(defun %install-instantiation (template-function-name argument-specification function)
   (let* ((template-function (find-template-function template-function-name))
-         (name (compute-name template-function argument-types))
-         (function-type (compute-function-type template-function argument-types))
-         (specialization-lambda-list (make-specialization-lambda-list (parameters template-function)
-                                                                      argument-types))
+         (name (compute-name template-function argument-specification))
+         (function-type (compute-function-type template-function argument-specification))
+         (specialization-lambda-list (funcall (specialization-lambda-list-function template-function)
+                                              argument-specification))
          (expand-function (specialization-store:compiler-macro-lambda (&rest args)
                             `(the ,(third function-type) (,name ,@args))))
          (specialization (make-instance 'specialization-store:standard-specialization
@@ -566,16 +688,17 @@
                  `(lambda (&rest args)
                     (apply (function ,function) args))
                  function)))
-    (destructuring-bind (parameters globals) (specialization-store.lambda-lists:parameter-init-forms-as-global-functions
-                                              (specialization-store.lambda-lists:parse-store-lambda-list lambda-list)
-                                              environment)
+    (destructuring-bind (store-parameters globals) (specialization-store.lambda-lists:parameter-init-forms-as-global-functions
+                                                    (specialization-store.lambda-lists:parse-store-lambda-list lambda-list)
+                                                    environment)
       (let* ((value-completion-function (or value-completion-function
-                                            (specialization-store.lambda-lists:make-value-completion-lambda-form parameters)))
+                                            (specialization-store.lambda-lists:make-value-completion-lambda-form store-parameters)))
              (type-completion-function (or type-completion-function
-                                           (specialization-store.lambda-lists:make-type-completion-lambda-form parameters environment)))
+                                           (specialization-store.lambda-lists:make-type-completion-lambda-form store-parameters environment)))
+             (lambda-list-parameters (store-parameters-as-arg-spec-parameters store-parameters))
              (name-function (or name-function
-                                (make-name-lambda-form name parameters)))
-             (new-lambda-list (specialization-store.lambda-lists:original-lambda-list parameters)))
+                                (make-name-lambda-form name lambda-list-parameters)))
+             (new-lambda-list (specialization-store.lambda-lists:original-lambda-list store-parameters)))
         `(eval-when (:compile-toplevel :load-toplevel :execute)
            ,@globals
            (ensure-template-function ',name ',new-lambda-list
@@ -613,13 +736,13 @@
 
 ;;;; Syntax Layer (Instantiation requests)
 
-(defmacro require-instantiations (&rest pairs-of-name-and-argument-types)
+(defmacro require-instantiations (&rest pairs-of-name-and-argument-specifications)
   (let* ((pairs (loop
-                  for (template-function-name . requests) in pairs-of-name-and-argument-types
+                  for (template-function-name . requests) in pairs-of-name-and-argument-specifications
                   for template-function = (find-template-function template-function-name)
                   append (loop
-                           for argument-types in requests
-                           collect (list template-function argument-types))))
+                           for argument-specification in requests
+                           collect (list template-function argument-specification))))
          (instantiations (%ensure-instantiations pairs)))
     `(eval-when (:load-toplevel)
        ;; Generate the instantiations when a fasl is loaded.
@@ -628,10 +751,10 @@
            for template-function-name = (name (instantiation-template-function instantiation))
            for name = (instantiation-name instantiation)
            for lambda-form = (instantiation-lambda-form instantiation)
-           for argument-types = (instantiation-argument-types instantiation)
+           for argument-specification = (instantiation-argument-specification instantiation)
            collect
-           `(%install-instantiation ',template-function-name ',argument-types
+           `(%install-instantiation ',template-function-name ',argument-specification
                                     (alexandria:named-lambda ,name ,@(rest lambda-form)))))))
 
-(defmacro require-instantiation ((template-function-name &rest argument-types))
-  `(require-instantiations (,template-function-name ,@argument-types)))
+(defmacro require-instantiation ((template-function-name &rest argument-specification))
+  `(require-instantiations (,template-function-name ,@argument-specification)))
