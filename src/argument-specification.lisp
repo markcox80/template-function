@@ -10,7 +10,7 @@
 ;;;;
 ;;;;   arg-typespec ::= (typespec*
 ;;;;                     [&rest typespec]
-;;;;                     [&key (keyword typespec)* [&allow-other-keys]])
+;;;;                     [&key (keyword typespec)*])
 ;;;;
 ;;;;   typespec -- a type specifier
 ;;;;   keyword -- a symbol.
