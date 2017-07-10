@@ -44,10 +44,11 @@
 ;;;;
 ;;;; An AS-lambda-list has the following syntax:
 ;;;;
-;;;;   AS-lambda-list ::= (wholevar reqvars othersvar restvar keyvars)
+;;;;   AS-lambda-list ::= (wholevar reqvars optionalvars othersvar restvar keyvars)
 ;;;;
 ;;;;   wholevar ::= [&whole var]
 ;;;;   reqvars ::= vars*
+;;;;   optionalvars ::= [&optional {var | (var [init-form [supplied-p-parameter]])}]
 ;;;;   othersvar ::= [&others var]
 ;;;;   restvar ::= [&rest var]
 ;;;;   keyvars ::= [&key {var | ({var | (keyword var)} [init-form [supplied-p-parameter]])}
@@ -64,6 +65,7 @@
 (defgeneric all-parameters (parameters))
 (defgeneric whole-parameter (parameters))
 (defgeneric required-parameters (parameters))
+(defgeneric optional-parameters (parameters))
 (defgeneric others-parameter (parameters))
 (defgeneric rest-parameter (parameters))
 (defgeneric keyword-parameters (parameters))
@@ -79,6 +81,8 @@
                      :reader whole-parameter)
    (%required-parameters :initarg :required-parameters
                          :reader required-parameters)
+   (%optional-parameters :initarg :optional-parameters
+                         :reader optional-parameters)
    (%others-parameter :initarg :others-parameter
                       :reader others-parameter)
    (%rest-parameter :initarg :rest-parameter
@@ -119,6 +123,13 @@
 (defclass required-parameter (parameter)
   ())
 
+(defclass optional-parameter (parameter)
+  ((%init-form :initarg :init-form
+               :reader parameter-init-form)
+   (%varp :initarg :varp
+          :type (or variable-name null)
+          :reader parameter-varp)))
+
 (defclass others-parameter (parameter)
   ())
 
@@ -138,6 +149,13 @@
   (print-unreadable-object (object stream :type t :identity t)
     (write (parameter-var object) :stream stream)))
 
+(defmethod print-object ((object optional-parameter) stream)
+  (print-unreadable-object (object stream :type t :identity t)
+    (format stream "~W ~W ~W"
+            (parameter-var object)
+            (parameter-init-form object)
+            (parameter-varp object))))
+
 (defmethod print-object ((object keyword-parameter) stream)
   (print-unreadable-object (object stream :type t :identity t)
     (format stream "~W ~W ~W ~W"
@@ -153,6 +171,13 @@
 (defun make-required-parameter (var)
   (check-type var variable-name)
   (make-instance 'required-parameter :var var))
+
+(defun make-optional-parameter (var &optional (init-form t) varp)
+  (check-type var variable-name)
+  (check-type varp (or null variable-name))
+  (make-instance 'optional-parameter :var var
+                                     :init-form init-form
+                                     :varp varp))
 
 (defun make-others-parameter (var)
   (check-type var variable-name)
@@ -179,6 +204,9 @@
 
 (defun required-parameter-p (object)
   (typep object 'required-parameter))
+
+(defun optional-parameter-p (object)
+  (typep object 'optional-parameter))
 
 (defun others-parameter-p (object)
   (typep object 'others-parameter))
@@ -232,6 +260,11 @@
                      "Cannot use &others lambda list keyword without the &rest lambda list keyword in ~A."
                      as-lambda-list))
 
+(defun %signal-no-others-and-rest-error (as-lambda-list)
+  (%signal-pas-error as-lambda-list
+                     "Cannot use &rest lambda list keyword without the &others lambda list keyword in ~A."
+                     as-lambda-list))
+
 (define-condition duplicate-variable-error (parse-lambda-list-error)
   ((variable :initarg :variable
              :reader duplicate-variable-error-variable)))
@@ -248,9 +281,9 @@
   (check-type list list)
   (cond ((null list)
          (values nil nil))
-        ((member (first list) '(&optional &allow-other-keys))
+        ((member (first list) '(&allow-other-keys))
          (%signal-pas-invalid-keyword-error (first list) as-lambda-list))
-        ((or (member (first list) '(&others &rest &key))
+        ((or (member (first list) '(&optional &others &rest &key))
              (variable-name-p (first list)))
          (values nil list))
         ((and (eql '&whole (first list))
@@ -263,9 +296,9 @@
 (defun parse-lambda-list/required (as-lambda-list list)
   (cond ((null list)
          (values nil nil))
-        ((member (first list) '(&optional &allow-other-keys &whole))
+        ((member (first list) '(&allow-other-keys &whole))
          (%signal-pas-invalid-keyword-error (first list) as-lambda-list))
-        ((member (first list) '(&others &rest &key))
+        ((member (first list) '(&optional &others &rest &key))
          (values nil list))
         ((variable-name-p (first list))
          (multiple-value-bind (others next-list) (parse-lambda-list/required as-lambda-list (rest list))
@@ -274,6 +307,36 @@
                    next-list)))
         (t
          (%signal-pas-syntax-error (first list) as-lambda-list))))
+
+(defun parse-lambda-list/optional (as-lambda-list list)
+  (labels ((process (list)
+             (cond ((null list)
+                    (values nil nil))
+                   ((member (first list) '(&optional &whole &allow-other-keys))
+                    (%signal-pas-invalid-keyword-error (first list) as-lambda-list))
+                   ((member (first list) '(&others &rest &key))
+                    (values nil list))
+                   ((variable-name-p (first list))
+                    (multiple-value-bind (others next-list) (process (rest list))
+                      (values (cons (make-optional-parameter (first list))
+                                    others)
+                              next-list)))
+                   ((let* ((tmp (first list)))
+                      (and (listp tmp)
+                           (<= 1 (length tmp) 3)
+                           (variable-name-p (first tmp))
+                           (or (null (third tmp))
+                               (variable-name-p (third tmp)))))
+                    (multiple-value-bind (others next-list) (process (rest list))
+                      (values (cons (apply #'make-optional-parameter (first list))
+                                    others)
+                              next-list)))
+                   (t
+                    (%signal-pas-syntax-error (first list) as-lambda-list)))))
+    (cond ((eql '&optional (first list))
+           (process (rest list)))
+          (t
+           (values nil list)))))
 
 (defun parse-lambda-list/others (as-lambda-list list)
   (cond ((null list)
@@ -363,7 +426,7 @@
                  (push var visited)))))
       (dolist (parameter parameters)
         (etypecase parameter
-          (keyword-parameter
+          ((or keyword-parameter optional-parameter)
            (check-visited (parameter-var parameter)
                           (parameter-varp parameter)))
           (parameter
@@ -382,10 +445,11 @@
            (ensure-list (object)
              (when object
                (list object))))
-    (destructuring-bind (whole required others rest keys-tuple)
+    (destructuring-bind (whole required optional others rest keys-tuple)
         (process as-lambda-list
                  #'parse-lambda-list/whole
                  (list #'parse-lambda-list/required
+                       #'parse-lambda-list/optional
                        #'parse-lambda-list/others
                        #'parse-lambda-list/rest
                        #'parse-lambda-list/keys))
@@ -394,8 +458,11 @@
           (%signal-others-and-keys-error as-lambda-list))
         (when (and others (not rest))
           (%signal-others-and-no-rest-error as-lambda-list))
+        (when (and (not others) rest (not keysp))
+          (%signal-no-others-and-rest-error as-lambda-list))
         (let* ((all-parameters (append (ensure-list whole)
                                        required
+                                       optional
                                        (ensure-list others)
                                        (ensure-list rest)
                                        keys)))
@@ -405,6 +472,7 @@
                          :lambda-list as-lambda-list
                          :whole-parameter whole
                          :required-parameters required
+                         :optional-parameters optional
                          :others-parameter others
                          :rest-parameter rest
                          :keyword-parameters-p keysp
