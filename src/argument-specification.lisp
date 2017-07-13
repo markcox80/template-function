@@ -526,107 +526,83 @@
    "Argument specification ~A is invalid."
    arg-spec))
 
-;; arg-spec must contain only required-count values.
-(defun %asl/check-required (arg-spec required-count as-lambda-list)
+;; arg-spec must contain X required values such that min-count <=
+;; X <= max-count.
+(defun %asl/check-positional (arg-spec min-count max-count as-lambda-list)
   (let* ((count (loop
                   for item in arg-spec
                   when (member item '(&optional &rest &key))
                     do
                        (signal-invalid-argument-specification-error arg-spec as-lambda-list)
                   count item)))
-
-    (when (< count required-count)
+    (when (< count min-count)
       (signal-too-few-required-values-error arg-spec as-lambda-list))
-    (when (> count required-count)
-      (signal-too-many-required-values-error arg-spec as-lambda-list))))
+    (when (> count max-count)
+      (signal-too-many-required-values-error arg-spec as-lambda-list))
+    arg-spec))
 
-;; arg-spec must contain at least required-count values and a rest
-;; value.  This function can accept other required values prior to the
-;; rest value.
-(defun %asl/check-rest-with-others (arg-spec required-count as-lambda-list)
-  (when (find-if #'(lambda (x)
-                     (member x '(&optional &key &allow-other-keys)))
-                 arg-spec)
-    (signal-invalid-argument-specification-error arg-spec as-lambda-list))
-  (let* ((count (loop
-                  for item in arg-spec
-                  for index from 0 below required-count
-                  when (eql item '&rest)
-                    do
-                       (signal-invalid-argument-specification-error arg-spec as-lambda-list)
-                  count item))
-         (rest-pos (or (position '&rest arg-spec)
-                       (length arg-spec)))
-         (rest (nthcdr rest-pos arg-spec))
-         (rest-type (second rest)))
-    (when (< count required-count)
-      (signal-too-few-required-values-error arg-spec as-lambda-list))
-    (when (or (/= 2 (length rest))
-              (eql '&rest rest-type))
-      (signal-invalid-argument-specification-error arg-spec as-lambda-list))
-    (values rest-type rest-pos)))
-
-;; arg-spec must contain required-count values with an optional rest
-;; value.
-(defun %asl/check-rest-sans-others (arg-spec required-count as-lambda-list)
+;; arg-spec must contain at least min-count required values. The
+;; argument specification can contain other required values prior to
+;; an optional &rest specification. The other required values will be
+;; assigned to optional arguments or collated for the other
+;; argument.
+(defun %asl/check-rest-and-others (arg-spec min-count max-count as-lambda-list)
   (loop
-    for arg-spec-rest on arg-spec
-    for item = (first arg-spec-rest)
-    for count from 0 below required-count
+    for sub-spec on arg-spec
+    for item = (first sub-spec)
+    until (eql item '&rest)
     when (member item '(&optional &key &allow-other-keys))
       do (signal-invalid-argument-specification-error arg-spec as-lambda-list)
-    when (eql item '&rest)
-      do (signal-too-few-required-values-error arg-spec as-lambda-list)
+    count item into positional-count
+    collect item into positional
     finally
-       (return (cond ((< count required-count)
-                      (signal-too-few-required-values-error arg-spec as-lambda-list))
-                     ((null arg-spec-rest)
-                      nil)
-                     ((and (eql '&rest (first arg-spec-rest))
-                           (cdr arg-spec-rest)
-                           (null (cddr arg-spec-rest)))
-                      (second arg-spec-rest))
-                     (t
-                      (signal-invalid-argument-specification-error arg-spec as-lambda-list))))))
+       (when (< positional-count min-count)
+         (signal-too-few-required-values-error arg-spec as-lambda-list))
+       (when (and (eql item '&rest)
+                  (or (< positional-count max-count)
+                      (not (consp (cdr sub-spec)))
+                      (not (null (cddr sub-spec)))
+                      (not (variable-name-p (second sub-spec)))))
+         (signal-invalid-argument-specification-error arg-spec as-lambda-list))
+       (return (values positional (second sub-spec)))))
 
-;; arg-spec must contain required-count values with a keyword section.
-(defun %asl/check-keys (arg-spec required-count as-lambda-list keywords storage allow-other-keys)
-  (let* ((key-section (loop
-                        for arg-spec-rest on arg-spec
-                        for item = (first arg-spec-rest)
-                        for count from 1 to required-count
-                        when (member item '(&optional &rest &allow-other-keys))
-                          do (signal-invalid-argument-specification-error arg-spec as-lambda-list)
-                        when (eql item '&key)
-                          do (signal-too-few-required-values-error arg-spec as-lambda-list)
-                        finally
-                           (return (cond ((< count required-count)
-                                          (signal-too-few-required-values-error arg-spec as-lambda-list))
-                                         ((null arg-spec-rest)
-                                          nil)
-                                         ((eql '&key (first arg-spec-rest))
-                                          (rest arg-spec-rest))
-                                         ((member (first arg-spec-rest) '(&rest))
-                                          (signal-invalid-argument-specification-error arg-spec as-lambda-list))
-                                         (t
-                                          (signal-too-many-required-values-error arg-spec as-lambda-list)))))))
-    (loop
-      for item in key-section
-      unless (and (consp item)
-                  (consp (cdr item))
-                  (null (cddr item)))
-        do (signal-malformed-argument-specification-error arg-spec as-lambda-list)
-      do
-         (let* ((pos (position (first item) keywords)))
-           (cond (pos
-                  (setf (aref storage pos) (rest item)))
-                 ((not allow-other-keys)
-                  (signal-invalid-argument-specification-error arg-spec as-lambda-list)))))))
+;; arg-spec must contain X required values such that min-count <= X <=
+;; max-count and possibly a keyword section.
+(defun %asl/check-keys (arg-spec min-count max-count as-lambda-list keywords storage allow-other-keys)
+  (loop
+    for sub-arg-spec on arg-spec
+    for item = (first sub-arg-spec)
+    when (member item '(&optional &rest &allow-other-keys))
+      do (signal-invalid-argument-specification-error arg-spec as-lambda-list)
+    until (eql item '&key)
+    count item into positional-count
+    finally
+       (when (< positional-count min-count)
+         (signal-too-few-required-values-error arg-spec as-lambda-list))
+       (when (> positional-count max-count)
+         (signal-too-many-required-values-error arg-spec as-lambda-list))
+       (when (and (eql item '&key)
+                  (< positional-count max-count))
+         (signal-invalid-argument-specification-error arg-spec as-lambda-list))
+       (loop
+         for item in (rest sub-arg-spec)
+         unless (and (consp item)
+                     (consp (cdr item))
+                     (null (cddr item))
+                     (keyword-name-p (first item)))
+           do (signal-malformed-argument-specification-error arg-spec as-lambda-list)
+         do
+            (let* ((pos (position (first item) keywords)))
+              (cond (pos
+                     (setf (aref storage pos) (rest item)))
+                    ((not allow-other-keys)
+                     (signal-invalid-argument-specification-error arg-spec as-lambda-list)))))))
 
 (defmacro argument-specification-lambda (as-lambda-list &body body)
   (let* ((parameters (parse-lambda-list as-lambda-list))
          (whole (whole-parameter parameters))
          (arg-spec (gensym "ARGUMENT-SPECIFICATION"))
+         (pos-var (gensym "POSITIONAL"))
          (whole-let (when whole
                       (list `(,(parameter-var whole) ,arg-spec))))
          (required (required-parameters parameters))
@@ -634,7 +610,23 @@
          (required-let (loop
                          for r in (required-parameters parameters)
                          for var = (parameter-var r)
-                         collect `(,var (pop ,arg-spec))))
+                         collect `(,var (pop ,pos-var))))
+         (optional (optional-parameters parameters))
+         (optional-count (length optional))
+         (optional-let (loop
+                         for o in optional
+                         for var = (parameter-var o)
+                         for init-form = (parameter-init-form o)
+                         for varp = (parameter-varp o)
+                         for tmp = (gensym "TMP")
+                         append `((,tmp (and ,pos-var t))
+                                  (,var (if ,tmp
+                                            (pop ,pos-var)
+                                            ,init-form)))
+                         when varp
+                           collect `(,varp ,tmp)))
+         (positional-count (+ required-count optional-count))
+         (positional-let (append required-let optional-let))
          (others (others-parameter parameters))
          (rest (rest-parameter parameters))
          (keywords? (keyword-parameters-p parameters))
@@ -642,28 +634,22 @@
          (allow-other-keywords-p (allow-other-keywords-p parameters)))
     (cond ((and (null others) (null rest) (not keywords?))
            `(lambda (,arg-spec)
-              (%asl/check-required ,arg-spec ,(length required) ',as-lambda-list)
               (let* (,@whole-let
-                     ,@required-let)
+                     (,pos-var (%asl/check-positional ,arg-spec ,required-count ,positional-count ',as-lambda-list))
+                     ,@positional-let)
                 ,@body)))
           ((and others rest (not keywords?))
-           (alexandria:with-gensyms (rest-pos tmp)
-             (let* ((rest-var (parameter-var rest))
-                    (others-var (parameter-var others)))
-               `(lambda (,arg-spec)
-                  (multiple-value-bind (,tmp ,rest-pos) (%asl/check-rest-with-others ,arg-spec ,required-count ',as-lambda-list)
-                    (let* (,@whole-let
-                           (,others-var (subseq ,arg-spec ,required-count ,rest-pos))
-                           ,@required-let
-                           (,rest-var ,tmp))
-                      ,@body))))))
-          ((and (null others) rest (not keywords?))
-           (let* ((rest-var (parameter-var rest)))
+           (let* ((tmp-rest (gensym "REST"))
+                  (rest-var (parameter-var rest))
+                  (others-var (parameter-var others)))
              `(lambda (,arg-spec)
-                (let* (,@whole-let
-                       (,rest-var (%asl/check-rest-sans-others ,arg-spec ,required-count ',as-lambda-list))
-                       ,@required-let)
-                  ,@body))))
+                (multiple-value-bind (,pos-var ,tmp-rest)
+                    (%asl/check-rest-and-others ,arg-spec ,required-count ,positional-count ',as-lambda-list)
+                  (let* (,@whole-let
+                         ,@positional-let
+                         (,others-var ,pos-var)
+                         (,rest-var ,tmp-rest))
+                    ,@body)))))
           (keywords?
            (let* ((keyword-count (length keywords))
                   (keyword-symbols (mapcar #'parameter-keyword keywords)))
@@ -671,9 +657,13 @@
                `(lambda (,arg-spec)
                   (let* ((,storage (make-array ,keyword-count :initial-element 0)))
                     (declare (dynamic-extent ,storage))
-                    (%asl/check-keys ,arg-spec ,required-count ',as-lambda-list ',keyword-symbols ,storage ,allow-other-keywords-p)
+                    (%asl/check-keys ,arg-spec
+                                     ,required-count ,positional-count
+                                     ',as-lambda-list ',keyword-symbols
+                                     ,storage ,allow-other-keywords-p)
                     (let* (,@whole-let
-                           ,@required-let
+                           (,pos-var ,arg-spec)
+                           ,@positional-let
                            ,@(loop
                                for keyword in keywords
                                for pos from 0

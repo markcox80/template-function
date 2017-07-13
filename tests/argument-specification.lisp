@@ -303,6 +303,8 @@
       (trial t)
       (trial t t)
       (trial t t t t)
+      (trial &optional t t)
+      (trial t &optional t)
       (trial &rest t)
       (trial t &rest t)
       (trial t t &rest t)
@@ -312,11 +314,37 @@
       (trial t t &key (a t))
       (trial t t t &key (a t)))))
 
+(test argument-specification-lambda/optional
+  (let* ((fn (argument-specification-lambda (a b &optional c (d 'float dp))
+               (list a b c d dp))))
+    (macrolet ((trial (expected input)
+                 `(is (equal ',expected (funcall fn ',input)))))
+      (trial (t t t float nil) (t t))
+      (trial (bit string float float nil) (bit string float))
+      (trial (bit string float number t) (bit string float number)))
+
+    (macrolet ((trial (&rest arg-spec)
+                 `(signals argument-specification-lambda-error
+                    (funcall fn ',arg-spec))))
+      (trial)
+      (trial bit)
+      (trial &rest t)
+      (trial &optional t)
+      (trial bit float &rest t)
+      (trial bit float &key (:c d))
+      (trial bit float string number character)
+      (trial bit float string number &rest t))))
+
 (test argument-specification-lambda/rest-and-others
+  ;; No optional
   (let* ((fn (argument-specification-lambda (a &others others &rest args)
                (list a others args))))
     (macrolet ((trial (expected input)
                  `(is (equal ',expected (funcall fn ',input)))))
+      (trial (t nil nil) (t))
+      (trial (t (bit) nil) (t bit))
+      (trial (t (bit number) nil) (t bit number))
+      (trial (string (string sequence) real) (string string sequence &rest real))
       (trial (t nil t) (t &rest t))
       (trial (t nil integer) (t &rest integer))
       (trial (bit nil integer) (bit &rest integer))
@@ -324,15 +352,33 @@
       (trial (bit (integer bit) float) (bit integer bit &rest float)))
 
     (macrolet ((trial (&rest arg-spec)
-                 `(signals argument-specification-lambda-error
+                 `(signals (argument-specification-lambda-error
+                            "Failed to signal an error for argument specification ~A."
+                            (',arg-spec))
                     (funcall fn ',arg-spec))))
-      (trial t)
       (trial &rest integer)
       (trial &key (a bit))
       (trial &optional bit)
       (trial t &key (a bit))
       (trial t &rest integer &rest bit)
       (trial t &rest)))
+
+  ;; Optional
+  (let* ((fn (argument-specification-lambda (a &optional (b 'float bp) &others others &rest args)
+               (list a (list b bp) others args))))
+    (macrolet ((trial (expected input)
+                 `(is (equal ',expected (funcall fn ',input)))))
+      (trial (t (float nil) nil nil) (t))
+      (trial (string (number t) nil nil) (string number))
+      (trial (string (bit t) (real complex) nil) (string bit real complex))
+      (trial (t (float t) nil number) (t float &rest number)))
+
+    (macrolet ((trial (&rest arg-spec)
+                 `(signals (argument-specification-lambda-error
+                            "Failed to signal an error for argument specification ~A."
+                            (',arg-spec))
+                    (funcall fn ',arg-spec))))
+      (trial bit &rest number)))
 
   ;; Whole
   (let* ((fn (argument-specification-lambda (&whole whole a &others others &rest args)
@@ -341,34 +387,8 @@
     (is (equal '((t t t &rest t) t (t t) t)
                act))))
 
-(test argument-specification-lambda/rest-sans-others
-  (let* ((fn (argument-specification-lambda (a b &rest args)
-               (list a b args))))
-    (macrolet ((trial (expected input)
-                 `(is (equal ',expected (funcall fn ',input)))))
-      (trial (t t t) (t t &rest t))
-      (trial (t bit integer) (t bit &rest integer))
-      (trial (float bit string) (float bit &rest string)))
-
-    (macrolet ((trial (&rest arg-spec)
-                 `(signals argument-specification-lambda-error
-                    (funcall fn ',arg-spec))))
-      (trial)
-      (trial t t)
-      (trial &rest t)
-      (trial t &rest t)
-      (trial t t &rest t &rest t)
-      (trial &rest t &rest t)
-      (trial t t t)))
-
-  ;; Whole
-  (let* ((fn (argument-specification-lambda (&whole whole a &rest args)
-               (list whole a args)))
-         (act (funcall fn '(t &rest t))))
-    (is (equal '((t &rest t) t t)
-               act))))
-
 (test argument-specification-lambda/keys-sans-allow-others
+  ;; No optional
   (let* ((fn (argument-specification-lambda (a b &key (c nil cp) ((:d foo)) e)
                (list a b (list c cp) foo e))))
     (labels ((do-trial (expected input)
@@ -397,6 +417,26 @@
       (trial t t (:hey))
       (trial t t (:c string) (:hey 1 2 3))))
 
+  ;; Optional
+  (let* ((fn (argument-specification-lambda (a &optional b &key (c 'number cp))
+               (list a b c cp))))
+    (macrolet ((trial (expected input)
+                 `(is (equal ',expected (funcall fn ',input)))))
+      (trial (bit t number nil) (bit))
+      (trial (bit float number nil) (bit float))
+      (trial (float real string t) (float real &key (:c string))))
+
+    (macrolet ((trial (&rest arg-spec)
+                 `(signals (argument-specification-lambda-error
+                            "Failed to signal error for argument specification ~A"
+                            (',arg-spec))
+                    (funcall fn ',arg-spec))))
+      (trial)
+      (trial real float bit)
+      (trial real &key (:c number))
+      (trial real number &key (:d bit))
+      (trial real number &key ((:c :c) bit))))
+
   ;; Whole
   (let* ((fn (argument-specification-lambda (&whole whole a &key b)
                (list whole a b)))
@@ -405,6 +445,7 @@
                act))))
 
 (test argument-specification-lambda/keys-and-allow-others
+  ;; No optional
   (let* ((fn (argument-specification-lambda (a b &key (c nil cp) ((:d foo)) e &allow-other-keys)
                (list a b (list c cp) foo e))))
     (labels ((do-trial (expected input)
@@ -432,6 +473,24 @@
       (trial t t (:hey))
       (trial t t (:c string) (:hey 1 2 3))))
 
+  ;; Optional
+  (let* ((fn (argument-specification-lambda (a &optional (b 'float bp) &key (c 'bit cp) &allow-other-keys)
+               (list a (list b bp) (list c cp)))))
+    (macrolet ((trial (expected input)
+                 `(is (equal ',expected (funcall fn ',input)))))
+      (trial (t (float nil) (bit nil)) (t))
+      (trial (bit (number t) (bit nil)) (bit number))
+      (trial (bit (number t) (bit t)) (bit number &key (:c bit)))
+      (trial (bit (bit t) (number t)) (bit bit &key (:d string) (:c number))))
+
+    (macrolet ((trial (&rest arg-spec)
+                 `(signals argument-specification-lambda-error
+                    (funcall fn ',arg-spec))))
+      (trial)
+      (trial bit bit bit)
+      (trial bit bit &key (:c bit 2))
+      (trial bit bit &key ((:c c) bit))))
+
   ;; Whole
   (let* ((fn (argument-specification-lambda (&whole whole a &key b &allow-other-keys)
                (list whole a b)))
@@ -441,32 +500,45 @@
 
 (test argument-specification-lambda/declarations
   ;; Required
-  (let* ((fn (argument-specification-lambda (&whole whole a b)
-               (declare (ignore whole a b))
+  (let* ((fn (argument-specification-lambda (&whole whole a b &optional (c 'number cp))
+               (declare (ignore whole a b c cp))
                nil)))
     (finishes (funcall fn '(t t))))
 
   ;; Others and rest
-  (let* ((fn (argument-specification-lambda (&whole whole a b &others others &rest args)
-               (declare (ignore whole a b others args))
+  (let* ((fn (argument-specification-lambda (&whole whole a b &optional c &others others &rest args)
+               (declare (ignore whole a b c others args))
                nil)))
     (finishes (funcall fn '(t t t t &rest t))))
 
-  ;; Others sans rest
-  (let* ((fn (argument-specification-lambda (&whole whole a b &rest args)
-               (declare (ignore whole a b args))
-               nil)))
-    (finishes (funcall fn '(t t &rest t))))
-
   ;; Keywords
-  (let* ((fn (argument-specification-lambda (&whole whole a b &key (c nil cp) ((:d foo)) e)
-               (declare (ignore whole a b c cp foo e))
+  (let* ((fn (argument-specification-lambda (&whole whole a b &optional c &key (d nil dp) ((:e foo)) f)
+               (declare (ignore whole a b c d dp foo f))
                nil)))
     (finishes (funcall fn '(t t)))))
 
 (test argument-specification-lambda/init-forms
-  (let* ((fn (argument-specification-lambda (&whole whole a b &key (c (list a b) cp) (d (list whole c cp)))
-               (list c d)))
-         (act (funcall fn '(bit integer))))
-    (is (equal '(bit integer) (first act)))
-    (is (equal '((bit integer) (bit integer) nil) (second act)))))
+  ;; Positional
+  (flet ((init-c (whole a b)
+           (list whole a b)))
+    (let* ((fn (argument-specification-lambda (&whole whole a &optional b (c (init-c whole a b)))
+                 c)))
+      (is (equal '((bit) bit t) (funcall fn '(bit))))))
+
+  ;; Rest and others
+  (flet ((init-b (whole a)
+           (list whole a)))
+    (let* ((fn (argument-specification-lambda (&whole whole a &optional (b (init-b whole a)) &others others &rest args)
+                 (declare (ignore others args))
+                 b)))
+      (is (equal '((bit) bit) (funcall fn '(bit))))))
+
+  ;; Keywords
+  (flet ((init-c (a b)
+           (list a b)))
+    (let* ((fn (argument-specification-lambda (&whole whole a b &optional (c (init-c a b)) &key (d (list c) dp) (e (list whole c dp)))
+                 (list c d e)))
+           (act (funcall fn '(bit integer))))
+      (is (equal '(bit integer) (first act)))
+      (is (equal '((bit integer)) (second act)))
+      (is (equal '((bit integer) (bit integer) nil) (third act))))))
