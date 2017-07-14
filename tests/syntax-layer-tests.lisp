@@ -44,10 +44,9 @@
       (signals error (xpy x))
       (signals error (xpy x x 1 2)))))
 
-#- (and)
 (syntax-layer-test basic/optional
   (eval-when (:compile-toplevel :load-toplevel :execute)
-    (template-function:defun/argument-specification make-lambda-form (<x> <y> <alpha>)
+    (template-function:defun/argument-specification make-lambda-form (<x> <y> &optional (<alpha> 'number))
       `(lambda (x y alpha)
          (check-type x ,<x>)
          (check-type y ,<y>)
@@ -57,7 +56,7 @@
          y))
 
     (template-function:defun/argument-specification make-function-type (x y &optional (alpha 'number))
-      `(function (,x ,y &optional ,alpha) ,y))
+      `(function (,x ,y ,alpha) ,y))
 
     (defun make-type-completion-function (continuation)
       (lambda (x y &optional (alpha '(eql 1)))
