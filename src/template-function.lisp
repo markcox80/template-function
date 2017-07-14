@@ -648,8 +648,7 @@
   (let* ((template-function (find-template-function template-function-name))
          (name (compute-name template-function argument-specification))
          (function-type (compute-function-type template-function argument-specification))
-         (specialization-lambda-list (funcall (specialization-lambda-list-function template-function)
-                                              argument-specification))
+         (specialization-lambda-list (compute-specialization-lambda-list template-function argument-specification))
          (expand-function (specialization-store:compiler-macro-lambda (&rest args)
                             `(the ,(third function-type) (,name ,@args))))
          (specialization (make-instance 'specialization-store:standard-specialization
