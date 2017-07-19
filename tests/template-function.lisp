@@ -163,8 +163,8 @@
     ;; Ensure type completion function is recomputed when the lambda
     ;; list changes.
     (reinitialize-instance tf :lambda-list '(a b &key alpha beta))
-    (is (eql 'example/*_*_NIL_NIL (template-function:compute-name* tf t t)))
-    (is (equalp '(t t &key (:alpha null) (:beta null))
+    (is (eql 'example/*_*_*_* (template-function:compute-name* tf t t)))
+    (is (equalp '(t t &key (:alpha t) (:beta t))
                 (template-function:complete-argument-specification* tf t t)))
 
     (reinitialize-instance tf
