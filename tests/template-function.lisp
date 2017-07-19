@@ -3,10 +3,16 @@
 
 ;;;; Object Layer Tests
 
-(template-function:defun/argument-specification xpy-function-type (<x> <y> &key ((:alpha <alpha>)) ((:beta <beta>)))
+(template-function:defun/argument-specification xpy-function-type (<x> <y>
+                                                                       &key
+                                                                       ((:alpha <alpha>) 'number)
+                                                                       ((:beta <beta>) 'number))
   `(function (,<x> ,<y> &key (:alpha ,<alpha>) (:beta ,<beta>)) (values)))
 
-(template-function:defun/argument-specification xpy-lambda-form (<x> <y> &key ((:alpha <alpha>)) ((:beta <beta>)))
+(template-function:defun/argument-specification xpy-lambda-form (<x> <y>
+                                                                     &key
+                                                                     ((:alpha <alpha>) 'number)
+                                                                     ((:beta <beta>) 'number))
   (declare (ignore <x> <y>))
   (let* ((one (coerce 1 <alpha>))
          (zero (coerce 0 <beta>)))
@@ -16,12 +22,6 @@
          (setf (row-major-aref y i) (+ (* alpha (row-major-aref x i))
                                        (* beta (row-major-aref y i)))))
        (values))))
-
-(defun complete-xpy-types (continuation)
-  (lambda (x y &key alpha beta)
-    (let* ((alpha (or alpha 'number))
-           (beta (or beta 'number)))
-      (funcall continuation x y :alpha alpha :beta beta))))
 
 (defun complete-xpy-values (continuation)
   (lambda (x y &key (alpha 1) (beta 0))
@@ -33,7 +33,6 @@
                             :lambda-list '(x y &key alpha beta)
                             :lambda-form-function #'xpy-lambda-form
                             :function-type-function #'xpy-function-type
-                            :type-completion-function #'complete-xpy-types
                             :value-completion-function #'complete-xpy-values)))
     (is-true (typep tf 'template-function:template-function))
     (is (equal 'example/A_A_N_N (template-function:compute-name tf '(array array))))
