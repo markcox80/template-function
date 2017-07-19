@@ -76,28 +76,24 @@
 
 (test ensure-instantiation/optional
   (flet ((make-lambda-form (argument-specification)
-           (template-function:destructuring-argument-specification (<x> <y> <z>) argument-specification
+           (template-function:destructuring-argument-specification (<x> <y> &optional (<z> 'number)) argument-specification
              `(lambda (x y z)
                 (check-type x ,<x>)
                 (check-type y ,<y>)
                 (check-type z ,<z>)
                 (+ x y z))))
          (make-function-type (argument-specification)
-           (template-function:destructuring-argument-specification (x y z) argument-specification
-             `(function (,x ,y &optional ,z) number)))
+           (template-function:destructuring-argument-specification (x y &optional (z 'number)) argument-specification
+             `(function (,x ,y ,z) number)))
          (complete-values (continuation)
            (lambda (x y &optional (z 1))
-             (funcall continuation x y z)))
-         (complete-types (continuation)
-           (lambda (x y &optional (z 'number))
              (funcall continuation x y z))))
     (let* ((tf (make-instance 'template-function:template-function
                               :name 'example
                               :lambda-list '(x y &optional z)
                               :lambda-form-function #'make-lambda-form
                               :function-type-function #'make-function-type
-                              :value-completion-function #'complete-values
-                              :type-completion-function #'complete-types)))
+                              :value-completion-function #'complete-values)))
       (finishes (template-function:ensure-instantiation* tf 'double-float 'double-float))
       (finishes (template-function:ensure-instantiation* tf 'double-float 'real 'real))
       (signals error (template-function:ensure-instantiation* tf 'real))
