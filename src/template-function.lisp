@@ -244,8 +244,112 @@
 (defun make-value-completion-function (parameters)
   (compile nil (specialization-store.lambda-lists:make-value-completion-lambda-form parameters)))
 
-(defun make-type-completion-function (parameters)
-  (compile nil (specialization-store.lambda-lists:make-type-completion-lambda-form parameters nil)))
+(define-condition invalid-function-type-error (error)
+  ((%function-type :initarg :function-type
+                   :reader invalid-function-type-error-function-type)
+   (%store-lambda-list :initarg :store-lambda-list
+                       :reader invalid-function-type-error-store-lambda-list))
+  (:report (lambda (condition stream)
+             (format stream "Invalid function type ~A for store lambda list ~A."
+                     (invalid-function-type-error-function-type condition)
+                     (invalid-function-type-error-store-lambda-list condition)))))
+
+(defun signal-invalid-function-type-error (function-type store-lambda-list)
+  (error 'invalid-function-type-error
+         :function-type function-type
+         :store-lambda-list store-lambda-list))
+
+(defun make-type-completion-lambda-form/sans-rest-sans-keywords (store-parameters function-type-function)
+  (assert (not (specialization-store.lambda-lists:rest-parameter store-parameters)))
+  (assert (not (specialization-store.lambda-lists:keyword-parameters-p store-parameters)))
+  (let* ((original-lambda-list (specialization-store.lambda-lists:original-lambda-list store-parameters)))
+    `(lambda (continuation)
+       (lambda (&rest arguments)
+         (let* ((ftype (funcall ,function-type-function arguments))
+                (arg-spec (second ftype)))
+           (loop
+             for arg in arg-spec
+             when (or (eql arg '&optional)
+                      (eql arg '&rest)
+                      (eql arg '&key))
+               do (signal-invalid-function-type-error ftype ',original-lambda-list))
+           (apply continuation arg-spec))))))
+
+(defun make-type-completion-lambda-form/with-rest-sans-keywords (store-parameters function-type-function)
+  (assert (specialization-store.lambda-lists:rest-parameter store-parameters))
+  (assert (not (specialization-store.lambda-lists:keyword-parameters-p store-parameters)))
+  (let* ((original-lambda-list (specialization-store.lambda-lists:original-lambda-list store-parameters)))
+    `(lambda (continuation)
+       (lambda (&rest arguments)
+         (let* ((ftype (funcall ,function-type-function arguments))
+                (arg-spec (second ftype)))
+           (loop
+             for arg in arg-spec
+             when (or (eql arg '&optional)
+                      (eql arg '&key))
+               do (signal-invalid-function-type-error ftype ',original-lambda-list))
+           (apply continuation (loop
+                                 for arg in arg-spec
+                                 until (eql arg '&rest)
+                                 collect arg)))))))
+
+(defun argument-types-to-argument-specification (positional-count arguments)
+  (loop
+    for sub-arguments on arguments
+    for index from 0 below positional-count
+    collect (first sub-arguments) into positional
+    finally
+       (return (append positional
+                       (when sub-arguments
+                         (cons '&key
+                               (loop
+                                 for (key value) on sub-arguments by #'cddr
+                                 collect (list key value))))))))
+
+(defun argument-specification-to-argument-types (argument-specification)
+  (loop
+    with state of-type (member positional keyword) = 'positional
+    for item in argument-specification
+    append (cond ((member item '(&rest &optional))
+                  (error "Invalid argument specification ~A." argument-specification))
+                 ((eql item '&key)
+                  (setf state 'keyword)
+                  nil)
+                 ((eql state 'positional)
+                  (list item))
+                 ((eql state 'keyword)
+                  (assert (listp item))
+                  (list (first item) (second item)))
+                 (t
+                  (error "Invalid state")))))
+
+(defun make-type-completion-lambda-form/with-keywords (store-parameters function-type-function)
+  (assert (specialization-store.lambda-lists:keyword-parameters-p store-parameters))
+  (let* ((required (specialization-store.lambda-lists:required-parameters store-parameters))
+         (optional (specialization-store.lambda-lists:optional-parameters store-parameters))
+         (positional-count (+ (length required) (length optional))))
+    `(lambda (continuation)
+       (lambda (&rest arguments)
+         (let* ((input (argument-types-to-argument-specification ,positional-count
+                                                                 arguments))
+                (output (funcall ,function-type-function input)))
+           (apply continuation (argument-specification-to-argument-types (second output))))))))
+
+(defun make-type-completion-lambda-form (store-parameters function-type-function)
+  (let* ((rest (specialization-store.lambda-lists:rest-parameter store-parameters))
+         (keywords? (specialization-store.lambda-lists:keyword-parameters-p store-parameters)))
+    (cond ((and (not rest) (not keywords?))
+           (make-type-completion-lambda-form/sans-rest-sans-keywords store-parameters
+                                                                     function-type-function))
+          ((and rest (not keywords?))
+           (make-type-completion-lambda-form/with-rest-sans-keywords store-parameters
+                                                                     function-type-function))
+          (t
+           (make-type-completion-lambda-form/with-keywords store-parameters
+                                                           function-type-function)))))
+
+(defun make-type-completion-function (store-parameters function-type-completion-function)
+  (compile nil (make-type-completion-lambda-form store-parameters function-type-completion-function)))
 
 ;;;; Object Layer
 
@@ -343,10 +447,10 @@
       (setf %value-completion-function (make-value-completion-function %store-parameters))))
 
   ;; Initialise %type-completion-function
-  (with-slots (%type-completion-function %store-parameters) instance
+  (with-slots (%type-completion-function %store-parameters %function-type-function) instance
     (unless (and (slot-boundp instance '%type-completion-function)
                  %type-completion-function)
-      (setf %type-completion-function (make-type-completion-function %store-parameters))))
+      (setf %type-completion-function (make-type-completion-function %store-parameters %function-type-function))))
 
   ;; Initialise %argument-specification-completion-function
   (with-slots (%argument-specification-completion-function %type-completion-function %store-parameters) instance
@@ -414,10 +518,13 @@
               %argument-specification-parameters (store-parameters-as-arg-spec-parameters %store-parameters)))
 
       (unless value-completion-function
-        (setf (slot-value instance '%value-completion-function) (make-value-completion-function new-parameters)))
+        (setf (slot-value instance '%value-completion-function)
+              (make-value-completion-function new-parameters)))
 
       (unless type-completion-function
-        (setf (slot-value instance '%type-completion-function) (make-type-completion-function new-parameters)))))
+        (setf (slot-value instance '%type-completion-function)
+              (make-type-completion-function new-parameters
+                                             (slot-value instance '%function-type-function))))))
 
   (when (and (or lambda-list-p type-completion-function)
              (not argument-specification-completion-function))

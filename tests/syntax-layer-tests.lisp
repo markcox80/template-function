@@ -58,17 +58,12 @@
     (template-function:defun/argument-specification make-function-type (x y &optional (alpha 'number))
       `(function (,x ,y ,alpha) ,y))
 
-    (defun make-type-completion-function (continuation)
-      (lambda (x y &optional (alpha '(eql 1)))
-        (funcall continuation x y alpha)))
-
     (flet ((compute-alpha (x y)
              (declare (ignore x y))
              1))
       (template-function:define-template xpy (x y &optional (alpha (compute-alpha x y)))
         (:lambda-form-function #'make-lambda-form)
-        (:function-type-function #'make-function-type)
-        (:type-completion-function #'make-type-completion-function))))
+        (:function-type-function #'make-function-type))))
 
   (template-function:require-instantiations (xpy (array array)
                                                  (array array real)
@@ -119,16 +114,11 @@
     (template-function:defun/argument-specification make-function-type (x y &key (alpha 'number))
       `(function (,x ,y &key (:alpha ,alpha)) ,y))
 
-    (defun make-type-completion-function (continuation)
-      (lambda (x y &key (alpha '(eql 1)))
-        (funcall continuation x y :alpha alpha)))
-
     (flet ((compute-alpha ()
              1))
       (template-function:define-template xpy (x y &key (alpha (compute-alpha)))
         (:lambda-form-function #'make-lambda-form)
-        (:function-type-function #'make-function-type)
-        (:type-completion-function #'make-type-completion-function))))
+        (:function-type-function #'make-function-type))))
 
   (template-function:require-instantiations (xpy (array array)
                                                  (array array &key (:alpha real))
