@@ -163,31 +163,6 @@
                 (funcall (funcall (template-function:type-completion-function tf) #'(lambda (&rest args) args))
                          t t)))))
 
-(test reinitialize-instance/type-completion-function
-  (let* ((tf (make-instance 'template-function:template-function
-                            :name 'example
-                            :lambda-list '(x y &key alpha beta)
-                            :lambda-form-function #'xpy-lambda-form
-                            :function-type-function #'xpy-function-type
-                            :type-completion-function #'complete-xpy-types
-                            :value-completion-function #'complete-xpy-values)))
-    (is (equalp '(t t &key (:alpha number) (:beta number))
-                (template-function:complete-argument-specification* tf t t)))
-
-    ;; Ensure type completion function is recomputed when the lambda
-    ;; list changes.
-    (reinitialize-instance tf :lambda-list '(a b &key alpha beta))
-    (is (eql 'example/*_*_*_* (template-function:compute-name* tf t t)))
-    (is (equalp '(t t &key (:alpha t) (:beta t))
-                (template-function:complete-argument-specification* tf t t)))
-
-    (reinitialize-instance tf
-                           :lambda-list '(a b &key alpha beta)
-                           :type-completion-function #'complete-xpy-types)
-    (is (eql 'example/*_*_N_N (template-function:compute-name* tf t t)))
-    (is (equalp '(t t &key (:alpha number) (:beta number))
-                (template-function:complete-argument-specification* tf t t)))))
-
 (test reinitialize-instance/value-completion-function
   (let* ((tf (make-instance 'template-function:template-function
                             :name 'example
