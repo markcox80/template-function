@@ -151,15 +151,15 @@
                             :lambda-form-function #'xpy-lambda-form
                             :function-type-function #'xpy-function-type
                             :value-completion-function #'complete-xpy-values))
-         (new-fn (template-function:argument-specification-lambda (x y &key (alpha 'number) (beta 'number))
+         (new-fn (template-function:argument-specification-lambda (x y &key (alpha 'real) (beta 'real))
                    `(function (,x ,y &key (:alpha ,alpha) (:beta ,beta)) (values)))))
-    (is (equalp '(t t &key (:alpha t) (:beta t))
+    (is (equalp '(t t &key (:alpha number) (:beta number))
                 (template-function:complete-argument-specification* tf t t)))
     (reinitialize-instance tf :lambda-list '(x y &key alpha beta)
                               :function-type-function new-fn)
-    (is (equalp '(t t &key (:alpha number) (:beta number))
+    (is (equalp '(t t &key (:alpha real) (:beta real))
                 (template-function:complete-argument-specification* tf t t)))
-    (is (equalp '(t t :alpha number :beta number)
+    (is (equalp '(t t :alpha real :beta real)
                 (funcall (funcall (template-function:type-completion-function tf) #'(lambda (&rest args) args))
                          t t)))))
 
