@@ -149,6 +149,25 @@
     (signals error (reinitialize-instance tf :lambda-list '(a b c)))
     (finishes (reinitialize-instance tf :lambda-list '(a b &key alpha beta)))))
 
+(test reinitialize-instance/function-type-function
+  (let* ((tf (make-instance 'template-function:template-function
+                            :name 'example
+                            :lambda-list '(x y &key alpha beta)
+                            :lambda-form-function #'xpy-lambda-form
+                            :function-type-function #'xpy-function-type
+                            :value-completion-function #'complete-xpy-values))
+         (new-fn (template-function:argument-specification-lambda (x y &key (alpha 'number) (beta 'number))
+                   `(function (,x ,y &key (:alpha ,alpha) (:beta ,beta)) (values)))))
+    (is (equalp '(t t &key (:alpha t) (:beta t))
+                (template-function:complete-argument-specification* tf t t)))
+    (reinitialize-instance tf :lambda-list '(x y &key alpha beta)
+                              :function-type-function new-fn)
+    (is (equalp '(t t &key (:alpha number) (:beta number))
+                (template-function:complete-argument-specification* tf t t)))
+    (is (equalp '(t t :alpha number :beta number)
+                (funcall (funcall (template-function:type-completion-function tf) #'(lambda (&rest args) args))
+                         t t)))))
+
 (test reinitialize-instance/type-completion-function
   (let* ((tf (make-instance 'template-function:template-function
                             :name 'example
