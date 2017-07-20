@@ -499,8 +499,7 @@
                                          &key
                                            (lambda-list nil lambda-list-p)
                                            type-completion-function
-                                           value-completion-function
-                                           argument-specification-completion-function)
+                                           value-completion-function)
   (when lambda-list-p
     (let* ((new-parameters (specialization-store.lambda-lists:parse-store-lambda-list lambda-list)))
       (with-slots (%store-parameters %argument-specification-parameters) instance
