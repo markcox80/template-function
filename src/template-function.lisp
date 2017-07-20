@@ -422,8 +422,6 @@
                                :reader value-completion-function)
    (%type-completion-function :initarg :type-completion-function
                               :reader type-completion-function)
-   (%argument-specification-completion-function :initarg :argument-specification-completion-function
-                                                :reader argument-specification-completion-function)
    (%specialization-lambda-list-function :initarg :specialization-lambda-list-function
                                          :reader specialization-lambda-list-function)
    (%store :initarg :store
@@ -451,14 +449,6 @@
     (unless (and (slot-boundp instance '%type-completion-function)
                  %type-completion-function)
       (setf %type-completion-function (make-type-completion-function %store-parameters %function-type-function))))
-
-  ;; Initialise %argument-specification-completion-function
-  (with-slots (%argument-specification-completion-function %type-completion-function %store-parameters) instance
-    (unless (and (slot-boundp instance '%argument-specification-completion-function)
-                 %argument-specification-completion-function)
-      (setf %argument-specification-completion-function
-            (make-argument-specification-completion-function %store-parameters
-                                                             %type-completion-function))))
 
   ;; Initialise %specialization-lambda-list-function
   (with-slots (%specialization-lambda-list-function %argument-specification-parameters) instance
@@ -526,12 +516,6 @@
               (make-type-completion-function new-parameters
                                              (slot-value instance '%function-type-function))))))
 
-  (when (and (or lambda-list-p type-completion-function)
-             (not argument-specification-completion-function))
-    (setf (slot-value instance '%argument-specification-completion-function)
-          (make-argument-specification-completion-function (store-parameters instance)
-                                                           (type-completion-function instance))))
-
   (with-slots (%store %lambda-list %type-completion-function %value-completion-function) instance
     (reinitialize-instance %store
                            :lambda-list %lambda-list
@@ -580,7 +564,7 @@
 
 (defmethod compute-function-type ((template-function template-function) argument-specification)
   (funcall (function-type-function template-function)
-           (complete-argument-specification template-function argument-specification)))
+           argument-specification))
 
 (defmethod compute-specialization-lambda-list ((template-function template-function) argument-specification)
   (funcall (specialization-lambda-list-function template-function)
@@ -631,9 +615,7 @@
                                                                         form environment)))
 
 (defmethod complete-argument-specification ((template-function template-function) argument-specification)
-  (let* ((fn (funcall (argument-specification-completion-function template-function)
-                      #'identity)))
-    (funcall fn argument-specification)))
+  (second (compute-function-type template-function argument-specification)))
 
 (defmethod complete-argument-specification* ((template-function template-function) &rest argument-specification)
   (complete-argument-specification template-function argument-specification))
