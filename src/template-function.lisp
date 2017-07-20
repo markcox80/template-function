@@ -50,64 +50,6 @@
 
 ;;;; Helpers
 
-(defun %complete-argument-specification (store-parameters type-completion-function argument-specification)
-  (let* ((required (specialization-store.lambda-lists:required-parameters store-parameters))
-         (optional (specialization-store.lambda-lists:optional-parameters store-parameters))
-         (positional-count (+ (length required) (length optional)))
-         (rest (specialization-store.lambda-lists:rest-parameter store-parameters))
-         (keys? (specialization-store.lambda-lists:keyword-parameters-p store-parameters)))
-    (labels ((to-argument-specification (completed-forms)
-               (append (subseq completed-forms 0 positional-count)
-                       (when keys?
-                         (cons '&key
-                               (loop
-                                 for (keyword type) on (nthcdr positional-count completed-forms) by #'cddr
-                                 collect (list keyword type))))))
-             (to-form-types (argument-specification)
-               (let* ((length (length argument-specification)))
-                 (append (subseq argument-specification 0 (min positional-count length))
-                         (when (>= length positional-count)
-                           (let* ((key-section (nthcdr positional-count argument-specification)))
-                             (cond ((null key-section)
-                                    nil)
-                                   ((eql '&key (first key-section))
-                                    (loop
-                                      for (keyword type) in (rest key-section)
-                                      append (list keyword type)))
-                                   (t
-                                    (error "Invalid argument specification ~A for store parameters ~A."
-                                           argument-specification
-                                           (specialization-store.lambda-lists:original-lambda-list store-parameters))))))))))
-      (cond ((and (not keys?) optional rest)
-             (error "Cannot complete argument specification for functions which specify optional parameters and a rest parameter."))
-            ((and (not keys?) (null optional))
-             ;; Nothing to do
-             argument-specification)
-            (t
-             (let* ((fn (funcall type-completion-function (lambda (&rest args)
-                                                             args)))
-                    (form-types (to-form-types argument-specification))
-                    (completed-form-types (apply fn form-types)))
-               (to-argument-specification completed-form-types)))))))
-
-(defun make-argument-specification-completion-function (store-parameters type-completion-function)
-  (let* ((optional (specialization-store.lambda-lists:optional-parameters store-parameters))
-         (rest (specialization-store.lambda-lists:rest-parameter store-parameters))
-         (keys? (specialization-store.lambda-lists:keyword-parameters-p store-parameters)))
-    (cond ((and (not keys?) optional rest)
-           (error "A user supplied argument specification completion function is required for template functions which specify optional and rest parameters."))
-          ((and (not keys?) (null optional))
-           (lambda (continuation)
-             (lambda (argument-specification)
-               (funcall continuation argument-specification))))
-          (t
-           (lambda (continuation)
-             (lambda (argument-specification)
-               (funcall continuation
-                        (%complete-argument-specification store-parameters
-                                                          type-completion-function
-                                                          argument-specification))))))))
-
 (defun store-parameters-as-arg-spec-lambda-list (parameters)
   (check-type parameters specialization-store.lambda-lists:parameters)
   (let* ((required (specialization-store.lambda-lists:required-parameters parameters))
