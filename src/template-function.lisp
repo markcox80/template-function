@@ -50,64 +50,6 @@
 
 ;;;; Helpers
 
-(defun %complete-argument-specification (store-parameters type-completion-function argument-specification)
-  (let* ((required (specialization-store.lambda-lists:required-parameters store-parameters))
-         (optional (specialization-store.lambda-lists:optional-parameters store-parameters))
-         (positional-count (+ (length required) (length optional)))
-         (rest (specialization-store.lambda-lists:rest-parameter store-parameters))
-         (keys? (specialization-store.lambda-lists:keyword-parameters-p store-parameters)))
-    (labels ((to-argument-specification (completed-forms)
-               (append (subseq completed-forms 0 positional-count)
-                       (when keys?
-                         (cons '&key
-                               (loop
-                                 for (keyword type) on (nthcdr positional-count completed-forms) by #'cddr
-                                 collect (list keyword type))))))
-             (to-form-types (argument-specification)
-               (let* ((length (length argument-specification)))
-                 (append (subseq argument-specification 0 (min positional-count length))
-                         (when (>= length positional-count)
-                           (let* ((key-section (nthcdr positional-count argument-specification)))
-                             (cond ((null key-section)
-                                    nil)
-                                   ((eql '&key (first key-section))
-                                    (loop
-                                      for (keyword type) in (rest key-section)
-                                      append (list keyword type)))
-                                   (t
-                                    (error "Invalid argument specification ~A for store parameters ~A."
-                                           argument-specification
-                                           (specialization-store.lambda-lists:original-lambda-list store-parameters))))))))))
-      (cond ((and (not keys?) optional rest)
-             (error "Cannot complete argument specification for functions which specify optional parameters and a rest parameter."))
-            ((and (not keys?) (null optional))
-             ;; Nothing to do
-             argument-specification)
-            (t
-             (let* ((fn (funcall type-completion-function (lambda (&rest args)
-                                                             args)))
-                    (form-types (to-form-types argument-specification))
-                    (completed-form-types (apply fn form-types)))
-               (to-argument-specification completed-form-types)))))))
-
-(defun make-argument-specification-completion-function (store-parameters type-completion-function)
-  (let* ((optional (specialization-store.lambda-lists:optional-parameters store-parameters))
-         (rest (specialization-store.lambda-lists:rest-parameter store-parameters))
-         (keys? (specialization-store.lambda-lists:keyword-parameters-p store-parameters)))
-    (cond ((and (not keys?) optional rest)
-           (error "A user supplied argument specification completion function is required for template functions which specify optional and rest parameters."))
-          ((and (not keys?) (null optional))
-           (lambda (continuation)
-             (lambda (argument-specification)
-               (funcall continuation argument-specification))))
-          (t
-           (lambda (continuation)
-             (lambda (argument-specification)
-               (funcall continuation
-                        (%complete-argument-specification store-parameters
-                                                          type-completion-function
-                                                          argument-specification))))))))
-
 (defun store-parameters-as-arg-spec-lambda-list (parameters)
   (check-type parameters specialization-store.lambda-lists:parameters)
   (let* ((required (specialization-store.lambda-lists:required-parameters parameters))
@@ -422,8 +364,6 @@
                                :reader value-completion-function)
    (%type-completion-function :initarg :type-completion-function
                               :reader type-completion-function)
-   (%argument-specification-completion-function :initarg :argument-specification-completion-function
-                                                :reader argument-specification-completion-function)
    (%specialization-lambda-list-function :initarg :specialization-lambda-list-function
                                          :reader specialization-lambda-list-function)
    (%store :initarg :store
@@ -451,14 +391,6 @@
     (unless (and (slot-boundp instance '%type-completion-function)
                  %type-completion-function)
       (setf %type-completion-function (make-type-completion-function %store-parameters %function-type-function))))
-
-  ;; Initialise %argument-specification-completion-function
-  (with-slots (%argument-specification-completion-function %type-completion-function %store-parameters) instance
-    (unless (and (slot-boundp instance '%argument-specification-completion-function)
-                 %argument-specification-completion-function)
-      (setf %argument-specification-completion-function
-            (make-argument-specification-completion-function %store-parameters
-                                                             %type-completion-function))))
 
   ;; Initialise %specialization-lambda-list-function
   (with-slots (%specialization-lambda-list-function %argument-specification-parameters) instance
@@ -509,8 +441,7 @@
                                          &key
                                            (lambda-list nil lambda-list-p)
                                            type-completion-function
-                                           value-completion-function
-                                           argument-specification-completion-function)
+                                           value-completion-function)
   (when lambda-list-p
     (let* ((new-parameters (specialization-store.lambda-lists:parse-store-lambda-list lambda-list)))
       (with-slots (%store-parameters %argument-specification-parameters) instance
@@ -525,12 +456,6 @@
         (setf (slot-value instance '%type-completion-function)
               (make-type-completion-function new-parameters
                                              (slot-value instance '%function-type-function))))))
-
-  (when (and (or lambda-list-p type-completion-function)
-             (not argument-specification-completion-function))
-    (setf (slot-value instance '%argument-specification-completion-function)
-          (make-argument-specification-completion-function (store-parameters instance)
-                                                           (type-completion-function instance))))
 
   (with-slots (%store %lambda-list %type-completion-function %value-completion-function) instance
     (reinitialize-instance %store
@@ -580,7 +505,7 @@
 
 (defmethod compute-function-type ((template-function template-function) argument-specification)
   (funcall (function-type-function template-function)
-           (complete-argument-specification template-function argument-specification)))
+           argument-specification))
 
 (defmethod compute-specialization-lambda-list ((template-function template-function) argument-specification)
   (funcall (specialization-lambda-list-function template-function)
@@ -631,9 +556,7 @@
                                                                         form environment)))
 
 (defmethod complete-argument-specification ((template-function template-function) argument-specification)
-  (let* ((fn (funcall (argument-specification-completion-function template-function)
-                      #'identity)))
-    (funcall fn argument-specification)))
+  (second (compute-function-type template-function argument-specification)))
 
 (defmethod complete-argument-specification* ((template-function template-function) &rest argument-specification)
   (complete-argument-specification template-function argument-specification))
