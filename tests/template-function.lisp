@@ -68,7 +68,6 @@
                             :lambda-list '(x y &key alpha beta)
                             :lambda-form-function #'xpy-lambda-form
                             :function-type-function #'xpy-function-type
-                            :type-completion-function #'complete-xpy-types
                             :value-completion-function #'complete-xpy-values)))
     (finishes (template-function:ensure-instantiation tf '(array array &key (:alpha real) (:beta real))))
     (signals error (template-function:ensure-instantiation tf '(array)))
@@ -134,7 +133,6 @@
                             :lambda-list '(x y &key alpha beta)
                             :lambda-form-function #'xpy-lambda-form
                             :function-type-function #'xpy-function-type
-                            :type-completion-function #'complete-xpy-types
                             :value-completion-function #'complete-xpy-values)))
     ;; Ensure trying to change the name signals an error.
     (signals error (reinitialize-instance tf :name 'example2))
@@ -169,7 +167,6 @@
                             :lambda-list '(x y &key alpha beta)
                             :lambda-form-function #'xpy-lambda-form
                             :function-type-function #'xpy-function-type
-                            :type-completion-function #'complete-xpy-types
                             :value-completion-function #'complete-xpy-values)))
     (let* ((completion-fn (template-function:value-completion-function tf))
            (fn (funcall completion-fn (lambda (&rest args)
