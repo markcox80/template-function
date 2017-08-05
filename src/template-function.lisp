@@ -302,7 +302,6 @@
 (defgeneric function-type-function (template-function))
 (defgeneric type-completion-function (template-function))
 (defgeneric value-completion-function (template-function))
-(defgeneric argument-specification-completion-function (template-function))
 
 (defgeneric compute-name (template-function argument-specification))
 (defgeneric compute-lambda-form (template-function argument-specification))
