@@ -182,3 +182,30 @@
                                         args))))
       (is (equalp '(2 2 :alpha 1 :beta 1)
                   (funcall fn 2 2))))))
+
+(test inlining
+  (let* ((tf (make-instance 'template-function:template-function
+                            :name 'example
+                            :lambda-list '(x y &key (alpha 1) (beta 0))
+                            :lambda-form-function #'xpy-lambda-form
+                            :function-type-function #'xpy-function-type
+                            :value-completion-function #'complete-xpy-values
+                            :inline t)))
+    (template-function:ensure-instantiation tf '(array array))
+    (labels ((search-form (item form)
+               (cond ((equalp item form)
+                      (values form t))
+                     ((listp form)
+                      (dolist (subform form)
+                        (multiple-value-bind (result match?) (search-form item subform)
+                          (when match?
+                            (return-from search-form (values result match?)))))))))
+      (let* ((expansion (template-function:expand-template-function tf '(example (the array x) (the array y))))
+             (fn (compile nil `(lambda (x y)
+                                 ,expansion)))
+             (expected (xpy-lambda-form '(array array)))
+             (y (make-array 5 :initial-contents '(0 1 2 3 4))))
+        (is-true (null (search-form 'example expansion)))
+        (is (equalp expected (search-form expected expansion)))
+        (funcall fn #(4 3 2 1 0) y)
+        (is (equalp #(4 3 2 1 0) y))))))

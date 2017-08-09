@@ -302,6 +302,7 @@
 (defgeneric function-type-function (template-function))
 (defgeneric type-completion-function (template-function))
 (defgeneric value-completion-function (template-function))
+(defgeneric inlinep (template-function))
 
 (defgeneric compute-name (template-function argument-specification))
 (defgeneric compute-lambda-form (template-function argument-specification))
@@ -370,8 +371,12 @@
    (%store-parameters :initarg :store-parameters
                       :reader store-parameters)
    (%argument-specification-parameters :initarg :argument-specification-parameters
-                                       :reader argument-specification-parameters))
-  (:metaclass template-function-class))
+                                       :reader argument-specification-parameters)
+   (%inlinep :initarg :inline
+             :reader inlinep))
+  (:metaclass template-function-class)
+  (:default-initargs
+   :inline nil))
 
 (defmethod initialize-instance :after ((instance template-function) &key)
   ;; Initialise %store-parameters and %argument-specification-parameters)
@@ -618,11 +623,15 @@
                (let* ((function-type (or function-type
                                          (compute-function-type template-function argument-specification)))
                       (name (compute-name template-function argument-specification))
+                      (named-lambda-form `(alexandria:named-lambda ,name ,@(rest lambda-form)))
                       (wrapper-fn (compile nil `(lambda ()
-                                                  (alexandria:named-lambda ,name ,@(rest lambda-form)))))
+                                                  ,named-lambda-form)))
                       (function (funcall wrapper-fn))
-                      (expand-function (specialization-store:compiler-macro-lambda (&rest args)
-                                         `(the ,(third function-type) (,name ,@args))))
+                      (expand-function (if (inlinep template-function)
+                                           (specialization-store:compiler-macro-lambda (&rest args)
+                                             `(the ,(third function-type) (,lambda-form ,@args)))
+                                           (specialization-store:compiler-macro-lambda (&rest args)
+                                             `(the ,(third function-type) (,name ,@args)))))
                       (specialization-lambda-list (compute-specialization-lambda-list template-function
                                                                                       argument-specification))
                       (specialization (make-instance 'specialization-store:standard-specialization
