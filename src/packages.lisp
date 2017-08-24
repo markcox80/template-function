@@ -15,8 +15,6 @@
            "LAMBDA-LIST"
            "LAMBDA-FORM"
            "FORM-FUNCTION-TYPE"
-           "TYPE-COMPLETION-FUNCTION"
-           "VALUE-COMPLETION-FUNCTION"
            "INLINEP"
 
            "COMPUTE-NAME"
