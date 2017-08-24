@@ -23,17 +23,12 @@
                                        (* beta (row-major-aref y i)))))
        (values))))
 
-(defun complete-xpy-values (continuation)
-  (lambda (x y &key (alpha 1) (beta 0))
-    (funcall continuation x y :alpha alpha :beta beta)))
-
 (test make-template-function
   (let* ((tf (make-instance 'template-function:template-function
                             :name 'example
-                            :lambda-list '(x y &key alpha beta)
+                            :lambda-list '(x y &key (alpha 1) (beta 0))
                             :lambda-form-function #'xpy-lambda-form
-                            :function-type-function #'xpy-function-type
-                            :value-completion-function #'complete-xpy-values)))
+                            :function-type-function #'xpy-function-type)))
     (is-true (typep tf 'template-function:template-function))
     (is (equal 'example/A_A_N_N (template-function:compute-name tf '(array array))))
     (is (equal '(function (array array &key (:alpha number) (:beta number)) (values))
@@ -67,8 +62,7 @@
                             :name 'example
                             :lambda-list '(x y &key alpha beta)
                             :lambda-form-function #'xpy-lambda-form
-                            :function-type-function #'xpy-function-type
-                            :value-completion-function #'complete-xpy-values)))
+                            :function-type-function #'xpy-function-type)))
     (finishes (template-function:ensure-instantiation tf '(array array &key (:alpha real) (:beta real))))
     (signals error (template-function:ensure-instantiation tf '(array)))
     (signals error (template-function:ensure-instantiation tf '(array array &key (:gamma real))))))
@@ -83,16 +77,12 @@
                 (+ x y z))))
          (make-function-type (argument-specification)
            (template-function:destructuring-argument-specification (x y &optional (z 'number)) argument-specification
-             `(function (,x ,y ,z) number)))
-         (complete-values (continuation)
-           (lambda (x y &optional (z 1))
-             (funcall continuation x y z))))
+             `(function (,x ,y ,z) number))))
     (let* ((tf (make-instance 'template-function:template-function
                               :name 'example
-                              :lambda-list '(x y &optional z)
+                              :lambda-list '(x y &optional (z 1))
                               :lambda-form-function #'make-lambda-form
-                              :function-type-function #'make-function-type
-                              :value-completion-function #'complete-values)))
+                              :function-type-function #'make-function-type)))
       (finishes (template-function:ensure-instantiation* tf 'double-float 'double-float))
       (finishes (template-function:ensure-instantiation* tf 'double-float 'real 'real))
       (signals error (template-function:ensure-instantiation* tf 'real))
@@ -132,8 +122,7 @@
                             :name 'example
                             :lambda-list '(x y &key alpha beta)
                             :lambda-form-function #'xpy-lambda-form
-                            :function-type-function #'xpy-function-type
-                            :value-completion-function #'complete-xpy-values)))
+                            :function-type-function #'xpy-function-type)))
     ;; Ensure trying to change the name signals an error.
     (signals error (reinitialize-instance tf :name 'example2))
     (finishes (reinitialize-instance tf :name 'example))
@@ -147,8 +136,7 @@
                             :name 'example
                             :lambda-list '(x y &key alpha beta)
                             :lambda-form-function #'xpy-lambda-form
-                            :function-type-function #'xpy-function-type
-                            :value-completion-function #'complete-xpy-values))
+                            :function-type-function #'xpy-function-type))
          (new-fn (template-function:argument-specification-lambda (x y &key (alpha 'real) (beta 'real))
                    `(function (,x ,y &key (:alpha ,alpha) (:beta ,beta)) (values)))))
     (is (equalp '(t t &key (:alpha number) (:beta number))
@@ -156,32 +144,7 @@
     (reinitialize-instance tf :lambda-list '(x y &key alpha beta)
                               :function-type-function new-fn)
     (is (equalp '(t t &key (:alpha real) (:beta real))
-                (template-function:complete-argument-specification* tf t t)))
-    (is (equalp '(t t :alpha real :beta real)
-                (funcall (funcall (template-function:type-completion-function tf) #'(lambda (&rest args) args))
-                         t t)))))
-
-(test reinitialize-instance/value-completion-function
-  (let* ((tf (make-instance 'template-function:template-function
-                            :name 'example
-                            :lambda-list '(x y &key alpha beta)
-                            :lambda-form-function #'xpy-lambda-form
-                            :function-type-function #'xpy-function-type
-                            :value-completion-function #'complete-xpy-values)))
-    (let* ((completion-fn (template-function:value-completion-function tf))
-           (fn (funcall completion-fn (lambda (&rest args)
-                                        args))))
-      (is (equalp '(2 2 :alpha 1 :beta 0)
-                  (funcall fn 2 2))))
-
-    ;; Ensure the value completion function is recomputed when the
-    ;; lambda list changes.
-    (reinitialize-instance tf :lambda-list '(a b &key (alpha 1) (beta 1)))
-    (let* ((completion-fn (template-function:value-completion-function tf))
-           (fn (funcall completion-fn (lambda (&rest args)
-                                        args))))
-      (is (equalp '(2 2 :alpha 1 :beta 1)
-                  (funcall fn 2 2))))))
+                (template-function:complete-argument-specification* tf t t)))))
 
 (test inlining
   (let* ((tf (make-instance 'template-function:template-function
@@ -189,7 +152,6 @@
                             :lambda-list '(x y &key (alpha 1) (beta 0))
                             :lambda-form-function #'xpy-lambda-form
                             :function-type-function #'xpy-function-type
-                            :value-completion-function #'complete-xpy-values
                             :inline t)))
     (template-function:ensure-instantiation tf '(array array))
     (labels ((search-form (item form)
