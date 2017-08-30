@@ -680,5 +680,5 @@
            `(%install-instantiation ',template-function-name ',argument-specification
                                     (alexandria:named-lambda ,name ,@(rest lambda-form)))))))
 
-(defmacro require-instantiation ((template-function-name &rest argument-specification))
-  `(require-instantiations (,template-function-name ,@argument-specification)))
+(defmacro require-instantiation (template-function-name argument-specification)
+  `(require-instantiations (,template-function-name (,@argument-specification))))
