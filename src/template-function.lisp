@@ -621,6 +621,7 @@
                     (apply (function ,function) args))
                  function)))
     (destructuring-bind (store-parameters globals) (specialization-store.lambda-lists:parameter-init-forms-as-global-functions
+                                                    name
                                                     (specialization-store.lambda-lists:parse-store-lambda-list lambda-list)
                                                     environment)
       (let* ((lambda-list-parameters (store-parameters-as-arg-spec-parameters store-parameters))
