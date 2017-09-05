@@ -354,3 +354,37 @@
     (is (= 1 (foo 0)))
     (is (= 5 (foo 1 2)))
     (is (= 12 (foo 3 4 5)))))
+
+(syntax-layer-test inlining/rest
+  (eval-when (:compile-toplevel :load-toplevel :execute)
+    (template-function:defun/argument-specification make-lambda-form (<a> &others <others> &rest <args>)
+      (assert (null <others>))
+      `(lambda (a &rest args)
+         (reduce #'+ args :initial-value a)))
+
+    (template-function:defun/argument-specification make-function-type (<a> &others <others> &rest <args>)
+      (assert (null <others>))
+      `(function (,<a> &rest ,<args>) number))
+
+    (template-function:define-template example (a &rest args)
+      (:lambda-form-function #'make-lambda-form)
+      (:function-type-function #'make-function-type)
+      (:inline t)))
+
+  (require-instantiation example (number &rest number))
+
+  (defun foo (a &optional b c)
+    (cond ((and b c)
+           (example (the number a) (the number b) (the number c)))
+          (b
+           (example (the number a) (the number b)))
+          (t
+           (example (the number a)))))
+
+  (compile 'foo)
+  (fmakunbound 'example)
+
+  (test foo
+    (is (= 1 (foo 1)))
+    (is (= 5 (foo 3 2)))
+    (is (= 6 (foo 3 2 1)))))
