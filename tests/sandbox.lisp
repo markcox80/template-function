@@ -129,7 +129,8 @@
                                 (if succeededp "passed" "failed"))
                         (unless succeededp
                           (let ((5am:*test-dribble* t))
-                            (5am:explain! result)))))
+                            (5am:explain! result)))
+                        succeededp))
                      (t
                       (error "Unable to compile and load sandbox test (~A ~A)." test-type test-name)))))
         (when delete-pathname-p
@@ -154,9 +155,14 @@
              (delete-package *sandbox-package*))))
     (with-open-file (in pathname)
       (loop
+        with succeededp = t
         with eof-value = '#:eof
-        for form = (process in eof-value)
-        until (eql form eof-value)))))
+        for result = (process in eof-value)
+        until (eql result eof-value)
+        unless result
+          do (setf succeededp nil)
+        finally
+           (return succeededp)))))
 
 (defun evaluate-sandbox-tests-in-file (pathname &key code-pathname (if-code-exists :error))
   (format t "~&~c~%;;;; Running sandbox tests in file: ~A~%" #\Page pathname)
