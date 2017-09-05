@@ -202,3 +202,189 @@
 
     (signals error (add 1d0 2))
     (signals error (add 1 2 3 4d0))))
+
+(syntax-layer-test inlining/required
+  (eval-when (:compile-toplevel :load-toplevel :execute)
+    (template-function:defun/argument-specification make-lambda-form (<input>)
+      `(lambda (input)
+         (declare (type ,<input> input))
+         (1+ input)))
+
+    (template-function:defun/argument-specification make-function-type (<input>)
+      `(function (,<input>) number))
+
+    (template-function:define-template example (input)
+      (:lambda-form-function #'make-lambda-form)
+      (:function-type-function #'make-function-type)
+      (:inline t))
+
+    (template-function:require-instantiation example (real)))
+
+  (defun foo (a)
+    (example a))
+
+  (compile 'foo)
+  (fmakunbound 'example)
+
+  (test foo
+    (is (= 2 (example 1)))
+    (is (= 3 (example 2)))))
+
+(syntax-layer-test inlining/optional
+  (eval-when (:compile-toplevel :load-toplevel :execute)
+    (template-function:defun/argument-specification make-lambda-form (&optional (<input> 'number))
+      `(lambda (input)
+         (declare (type ,<input> input))
+         (1+ input)))
+
+    (template-function:defun/argument-specification make-function-type (&optional (<input> 'number))
+      `(function (,<input>) number))
+
+    (let ((x 0))
+      (flet ((compute-input ()
+               (prog1 x
+                 (incf x))))
+        (template-function:define-template example (&optional (input (the number (compute-input))))
+          (:lambda-form-function #'make-lambda-form)
+          (:function-type-function #'make-function-type)
+          (:inline t)))))
+
+  (template-function:require-instantiation example (number))
+
+  (defun foo (&optional (v nil vp))
+    (if vp
+        (example (the number v))
+        (example)))
+
+  (compile 'foo)
+  (fmakunbound 'example)
+
+  (test foo
+    ;; x is 0
+    (is (= 1 (foo)))
+    ;; x is 1
+    (is (= 2 (foo)))
+    ;; x is 2
+    (is (= 10 (foo 9)))))
+
+(syntax-layer-test inlining/keywords/sans-rest
+  (eval-when (:compile-toplevel :load-toplevel :execute)
+    (template-function:defun/argument-specification make-lambda-form (<a> &key ((:b <b>) 'number) ((:c <c>) 'number))
+      `(lambda (a &key b c)
+         (declare (type ,<a> a)
+                  (type ,<b> b)
+                  (type ,<c> c))
+         (+ a b c)))
+
+    (template-function:defun/argument-specification make-function-type (<a> &key ((:b <b>) 'number) ((:c <c>) 'number))
+      `(function (,<a> &key (:b ,<b>) (:c ,<c>)) number))
+
+    (let ((x 0))
+      (flet ((compute ()
+               (prog1 x
+                 (incf x))))
+        (template-function:define-template example (a &key (b (the number (compute))) (c (+ a b)))
+          (:lambda-form-function #'make-lambda-form)
+          (:function-type-function #'make-function-type)
+          (:inline t))))
+
+    (template-function:require-instantiation example (number)))
+
+  (defun foo (a &optional (b nil) (c nil))
+    (cond ((and b c)
+           (example (the number a) :b (the number b) :c (the number c)))
+          (b
+           (example (the number a) :b (the number b)))
+          (c
+           (example (the number a) :c (the number c)))
+          (t
+           (example (the number a)))))
+
+  (compile 'foo)
+  (fmakunbound 'example)
+
+  (test foo ()
+    ;; x = 0
+    (is (= 0 (foo 0)))
+    ;; x = 1
+    (is (= 2 (foo 0)))
+    ;; x = 2
+    (is (= 6 (foo 1 2)))
+    (is (= 6 (foo 1 nil 3)))
+    (is (= 33 (foo 10 11 12)))))
+
+(syntax-layer-test inlining/keywords/with-rest
+  (eval-when (:compile-toplevel :load-toplevel :execute)
+    (template-function:defun/argument-specification make-lambda-form (<a> &key ((:b <b>) 'number) ((:c <c>) 'number) &allow-other-keys)
+      `(lambda (a &key b c)
+         (declare (type ,<a> a)
+                  (type ,<b> b)
+                  (type ,<c> c))
+         (+ a b c)))
+
+    (template-function:defun/argument-specification make-function-type (<a> &key ((:b <b>) 'number) ((:c <c>) 'number) &allow-other-keys)
+      `(function (,<a> &key (:b ,<b>) (:c ,<c>)) number))
+
+    (let ((x 0))
+      (flet ((compute ()
+               (prog1 x
+                 (incf x))))
+        (template-function:define-template example (a &rest args &key (b (the number (compute))) (c (the number (length args))))
+          (:lambda-form-function #'make-lambda-form)
+          (:function-type-function #'make-function-type)
+          (:inline t))))
+
+    (template-function:require-instantiation example (number)))
+
+  (defun foo (a &optional b c)
+    (cond ((and b c)
+           (example (the number a) :b (the number b) :c (the number c)))
+          (b
+           (example (the number a) :b (the number b)))
+          (t
+           (example (the number a)))))
+
+  (compile 'foo)
+  (fmakunbound 'example)
+
+  (test foo
+    ;; x = 0
+    (is (= 0 (foo 0)))
+    ;; x = 1
+    (is (= 1 (foo 0)))
+    (is (= 5 (foo 1 2)))
+    (is (= 12 (foo 3 4 5)))))
+
+(syntax-layer-test inlining/rest
+  (eval-when (:compile-toplevel :load-toplevel :execute)
+    (template-function:defun/argument-specification make-lambda-form (<a> &others <others> &rest <args>)
+      (assert (null <others>))
+      `(lambda (a &rest args)
+         (reduce #'+ args :initial-value a)))
+
+    (template-function:defun/argument-specification make-function-type (<a> &others <others> &rest <args>)
+      (assert (null <others>))
+      `(function (,<a> &rest ,<args>) number))
+
+    (template-function:define-template example (a &rest args)
+      (:lambda-form-function #'make-lambda-form)
+      (:function-type-function #'make-function-type)
+      (:inline t)))
+
+  (require-instantiation example (number &rest number))
+
+  (defun foo (a &optional b c)
+    (cond ((and b c)
+           (example (the number a) (the number b) (the number c)))
+          (b
+           (example (the number a) (the number b)))
+          (t
+           (example (the number a)))))
+
+  (compile 'foo)
+  (fmakunbound 'example)
+
+  (test foo
+    (is (= 1 (foo 1)))
+    (is (= 5 (foo 3 2)))
+    (is (= 6 (foo 3 2 1)))))
