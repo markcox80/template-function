@@ -202,3 +202,30 @@
 
     (signals error (add 1d0 2))
     (signals error (add 1 2 3 4d0))))
+
+(syntax-layer-test inlining/required
+  (eval-when (:compile-toplevel :load-toplevel :execute)
+    (template-function:defun/argument-specification make-lambda-form (<input>)
+      `(lambda (input)
+         (declare (type ,<input> input))
+         (1+ input)))
+
+    (template-function:defun/argument-specification make-function-type (<input>)
+      `(function (,<input>) number))
+
+    (template-function:define-template example (input)
+      (:lambda-form-function #'make-lambda-form)
+      (:function-type-function #'make-function-type)
+      (:inline t))
+
+    (template-function:require-instantiation example (real)))
+
+  (defun foo (a)
+    (example a))
+
+  (compile 'foo)
+  (fmakunbound 'example)
+
+  (test foo
+    (is (= 2 (example 1)))
+    (is (= 3 (example 2)))))
