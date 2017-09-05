@@ -358,6 +358,7 @@
 (syntax-layer-test inlining/rest
   (eval-when (:compile-toplevel :load-toplevel :execute)
     (template-function:defun/argument-specification make-lambda-form (<a> &others <others> &rest <args>)
+      (declare (ignore <a> <args>))
       (assert (null <others>))
       `(lambda (a &rest args)
          (reduce #'+ args :initial-value a)))
