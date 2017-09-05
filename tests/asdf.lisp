@@ -8,8 +8,11 @@
 
 (defmethod asdf:perform ((op asdf:test-op) (c (eql (asdf:find-system "template-function-tests"))))
   (run! 'all-template-function-tests)
-  (evaluate-sandbox-tests-in-file *glue-layer-tests-pathname*)
-  (evaluate-sandbox-tests-in-file *syntax-layer-tests-pathname*))
+  (let* ((glue? (evaluate-sandbox-tests-in-file *glue-layer-tests-pathname*))
+         (syntax? (evaluate-sandbox-tests-in-file *syntax-layer-tests-pathname*)))
+    (if (and glue? syntax?)
+        (format t "~&;;;; All sandbox tests passed.~%")
+        (format t "~&;;;; Some sandbox tests failed.~%"))))
 
 (defun evaluate-test-with-name (test-type test-name &key pathname (if-exists :error))
   (labels ((predicate (type name)
