@@ -26,4 +26,5 @@
                                        :if-code-exists if-exists)
     (evaluate-sandbox-tests-in-file-if #'predicate *syntax-layer-tests-pathname*
                                        :code-pathname pathname
-                                       :if-code-exists if-exists)))
+                                       :if-code-exists if-exists)
+    (values)))
