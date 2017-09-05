@@ -229,3 +229,40 @@
   (test foo
     (is (= 2 (example 1)))
     (is (= 3 (example 2)))))
+
+(syntax-layer-test inlining/optional
+  (eval-when (:compile-toplevel :load-toplevel :execute)
+    (template-function:defun/argument-specification make-lambda-form (&optional (<input> 'number))
+      `(lambda (input)
+         (declare (type ,<input> input))
+         (1+ input)))
+
+    (template-function:defun/argument-specification make-function-type (&optional (<input> 'number))
+      `(function (,<input>) number))
+
+    (let ((x 0))
+      (flet ((compute-input ()
+               (prog1 x
+                 (incf x))))
+        (template-function:define-template example (&optional (input (the number (compute-input))))
+          (:lambda-form-function #'make-lambda-form)
+          (:function-type-function #'make-function-type)
+          (:inline t)))))
+
+  (template-function:require-instantiation example (number))
+
+  (defun foo (&optional (v nil vp))
+    (if vp
+        (example (the number v))
+        (example)))
+
+  (compile 'foo)
+  (fmakunbound 'example)
+
+  (test foo
+    ;; x is 0
+    (is (= 1 (foo)))
+    ;; x is 1
+    (is (= 2 (foo)))
+    ;; x is 2
+    (is (= 10 (foo 9)))))
