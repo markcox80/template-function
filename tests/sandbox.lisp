@@ -122,7 +122,14 @@
                (format t "~%;;; Compiling and loading~%")
                (cond ((compile-and-load pathname)
                       (format t "~&~%;;; Running sandbox test.~%")
-                      (fiveam:run! (intern "ALL-SANDBOX-TESTS" *sandbox-package*)))
+                      (let* ((5am:*test-dribble* nil)
+                             (result (5am:run (intern "ALL-SANDBOX-TESTS" *sandbox-package*)))
+                             (succeededp (5am:results-status result)))
+                        (format t "~&;; Sandbox tests ~A.~%"
+                                (if succeededp "passed" "failed"))
+                        (unless succeededp
+                          (let ((5am:*test-dribble* t))
+                            (5am:explain! result)))))
                      (t
                       (error "Unable to compile and load sandbox test (~A ~A)." test-type test-name)))))
         (when delete-pathname-p
