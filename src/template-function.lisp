@@ -479,20 +479,23 @@
                                  &key
                                    lambda-form-function
                                    function-type-function
-                                   name-function)
+                                   name-function
+                                   inline)
   (declare (ignore lambda-form-function function-type-function name-function))
   (let* ((existing-template-function (find-template-function name nil))
          (template-function (cond (existing-template-function
-                                   (alexandria:remove-from-plistf args :name-function :name)
+                                   (alexandria:remove-from-plistf args :name-function :name :inline)
                                    (apply #'reinitialize-instance
                                           existing-template-function
                                           :lambda-list lambda-list
+                                          :inline inline
                                           args))
                                   (t
                                    (apply #'make-instance
                                           'template-function
                                           :name name
                                           :lambda-list lambda-list
+                                          :inline inline
                                           args)))))
     (setf (get name 'template-function) template-function
           (fdefinition name) template-function
@@ -607,7 +610,8 @@
                                            environment
                                            lambda-form-function
                                            function-type-function
-                                           name-function)
+                                           name-function
+                                           inline)
   (macrolet ((check-arg (arg)
                `(unless ,arg
                   (error "~A argument is required." ',arg))))
@@ -633,7 +637,8 @@
            (ensure-template-function ',name ',new-lambda-list
                                      :lambda-form-function ,(wrap-function lambda-form-function)
                                      :function-type-function ,(wrap-function function-type-function)
-                                     :name-function ,(wrap-function name-function)))))))
+                                     :name-function ,(wrap-function name-function)
+                                     :inline ,inline))))))
 
 (defmacro define-template (name lambda-list &body body &environment env)
   (labels ((body-values (key &optional errorp)
@@ -657,7 +662,8 @@
         :lambda-form-function (body-value :lambda-form-function t)
         :function-type-function (body-value :function-type-function t)
         :name-function (body-value :name-function)
-        :environment env))))
+        :environment env
+        :inline (body-value :inline)))))
 
 ;;;; Syntax Layer (Instantiation requests)
 
