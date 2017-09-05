@@ -312,3 +312,45 @@
     (is (= 6 (foo 1 2)))
     (is (= 6 (foo 1 nil 3)))
     (is (= 33 (foo 10 11 12)))))
+
+(syntax-layer-test inlining/keywords/with-rest
+  (eval-when (:compile-toplevel :load-toplevel :execute)
+    (template-function:defun/argument-specification make-lambda-form (<a> &key ((:b <b>) 'number) ((:c <c>) 'number) &allow-other-keys)
+      `(lambda (a &key b c)
+         (declare (type ,<a> a)
+                  (type ,<b> b)
+                  (type ,<c> c))
+         (+ a b c)))
+
+    (template-function:defun/argument-specification make-function-type (<a> &key ((:b <b>) 'number) ((:c <c>) 'number) &allow-other-keys)
+      `(function (,<a> &key (:b ,<b>) (:c ,<c>)) number))
+
+    (let ((x 0))
+      (flet ((compute ()
+               (prog1 x
+                 (incf x))))
+        (template-function:define-template example (a &rest args &key (b (the number (compute))) (c (the number (length args))))
+          (:lambda-form-function #'make-lambda-form)
+          (:function-type-function #'make-function-type)
+          (:inline t))))
+
+    (template-function:require-instantiation example (number)))
+
+  (defun foo (a &optional b c)
+    (cond ((and b c)
+           (example (the number a) :b (the number b) :c (the number c)))
+          (b
+           (example (the number a) :b (the number b)))
+          (t
+           (example (the number a)))))
+
+  (compile 'foo)
+  (fmakunbound 'example)
+
+  (test foo
+    ;; x = 0
+    (is (= 0 (foo 0)))
+    ;; x = 1
+    (is (= 1 (foo 0)))
+    (is (= 5 (foo 1 2)))
+    (is (= 12 (foo 3 4 5)))))
