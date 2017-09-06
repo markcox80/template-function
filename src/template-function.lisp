@@ -500,7 +500,10 @@
     (setf (get name 'template-function) template-function
           (fdefinition name) template-function
           (compiler-macro-function name) (lambda (form &optional environment)
-                                           (expand-template-function template-function form environment)))
+                                           (handler-case (expand-template-function template-function form environment)
+                                             (error (c)
+                                               (princ c *error-output*)
+                                               form))))
     template-function))
 
 (defmethod compute-name ((name symbol) argument-specification)
