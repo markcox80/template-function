@@ -283,7 +283,7 @@
       (flet ((compute ()
                (prog1 x
                  (incf x))))
-        (template-function:define-template example (a &key (b (the number (compute))) (c (+ a b)))
+        (template-function:define-template example (a &key (b (the number (compute))) (c (the number (+ a b))))
           (:lambda-form-function #'make-lambda-form)
           (:function-type-function #'make-function-type)
           (:inline t))))
