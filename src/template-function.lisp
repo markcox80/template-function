@@ -244,7 +244,7 @@
 (defgeneric compute-name* (template-function &rest argument-specification))
 (defgeneric compute-lambda-form* (template-function &rest argument-specification))
 (defgeneric compute-function-type* (template-function &rest argument-specification))
-(defgeneric compute-specialization-lambda-list (template-function argument-specification))
+(defgeneric compute-specialization-lambda-list* (template-function &rest argument-specification))
 (defgeneric complete-argument-specification (template-function argument-specification))
 (defgeneric complete-argument-specification* (template-function &rest argument-specification))
 
