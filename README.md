@@ -20,7 +20,8 @@ found in the function application.
 The system provides support for template functions composed of other
 template functions, recursive template functions, inlined templated
 functions and template functions accepting optional, rest and keyword
-arguments.
+arguments. Associated with this functionality is a meta-object
+protocol consisting of object, glue and syntax layers.
 
 # Installation
 
