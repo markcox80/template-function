@@ -23,6 +23,9 @@ functions and template functions accepting optional, rest and keyword
 arguments. Associated with this functionality is a meta-object
 protocol consisting of object, glue and syntax layers.
 
+Users should be aware that the interface provided by the template
+function system is subject to change.
+
 # Installation
 
 The template function system has the following dependencies:
