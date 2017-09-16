@@ -28,13 +28,39 @@
 ;; item must be an instance of instantiation.
 (defvar *processed*)
 
-(defstruct instantiation
-  template-function
-  argument-specification
-  name
-  lambda-form
-  function
-  function-type)
+(defgeneric instantiation-name (instantiation))
+(defgeneric instantiation-argument-specification (instantiation))
+(defgeneric instantiation-function-type (instantiation))
+(defgeneric instantiation-lambda-form (instantiation))
+(defgeneric instantiation-function (instantiation))
+(defgeneric instantiation-expand-function (instantiation))
+
+(defclass instantiation ()
+  ((%argument-specification :initarg :argument-specification
+                            :reader instantiation-argument-specification)
+   (%lambda-form :initarg :lambda-form
+                 :reader instantiation-lambda-form)
+   (%function-type :initarg :function-type
+                   :reader instantiation-function-type)
+   (%name :initarg :name
+          :reader instantiation-name)
+   (%function :initarg :function
+              :reader instantiation-function)
+
+   ;; This is here to help processing instantiations.
+   (%template-function :initarg :template-function
+                       :reader instantiation-template-function)))
+
+(defun make-instantiation (&key
+                             argument-specification lambda-form function-type
+                             name function template-function)
+  (make-instance 'instantiation
+                 :argument-specification argument-specification
+                 :lambda-form lambda-form
+                 :function-type function-type
+                 :name name
+                 :function function
+                 :template-function template-function))
 
 (defun processed-template-function-p (template-function argument-specification)
   (find-if #'(lambda (instantiation)
