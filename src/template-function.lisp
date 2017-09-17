@@ -357,10 +357,11 @@
       (setf %name-function (make-name-function %name %argument-specification-parameters))))
 
   ;; Initialise the store
-  (with-slots (%store %lambda-list %store-parameters) instance
+  (with-slots (%store %lambda-list %store-parameters %name) instance
     (unless (and (slot-boundp instance '%store)
                  %store)
       (setf %store (make-instance 'specialization-store:standard-store
+                                  :name %name
                                   :lambda-list %lambda-list
                                   :parameters %store-parameters))))
 
