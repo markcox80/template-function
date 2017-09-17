@@ -171,3 +171,42 @@
         (is (equalp expected (search-form expected expansion)))
         (funcall fn #(4 3 2 1 0) y)
         (is (equalp #(4 3 2 1 0) y))))))
+
+(test add-and-remove-instantiation
+  (let* ((tf (make-instance 'template-function:template-function
+                            :name 'example
+                            :lambda-list '(x y)
+                            :lambda-form-function (lambda (argspec)
+                                                    (template-function:destructuring-argument-specification (<x> <y>) argspec
+                                                      `(lambda (x y)
+                                                         (+ (the ,<x> x)
+                                                            (the ,<y> y)))))
+                            :function-type-function (lambda (argspec)
+                                                      `(function ,argspec number))))
+         (instantiation-1 (first (template-function:ensure-instantiation tf '(number number)))))
+    (is (equal (list instantiation-1) (template-function:instantiations tf)))
+
+    ;; Ensure there is no duplicate entry.
+    (template-function:add-instantiation tf instantiation-1)
+    (is (equal (list instantiation-1) (template-function:instantiations tf)))
+
+    (let* ((instantiation-2 (make-instance 'template-function:instantiation
+                                           :name 'example/integer-integer
+                                           :function (lambda (x y)
+                                                       (declare (type integer x y))
+                                                       (+ x y))
+                                           :lambda-form `(lambda (x y)
+                                                           (declare (type integer x y))
+                                                           (+ x y))
+                                           :argument-specification '(integer integer)
+                                           :function-type '(function (integer integer) integer))))
+      (template-function:add-instantiation tf instantiation-2)
+      (is (= 2 (length (template-function:instantiations tf))))
+
+      (is (= 3.0 (template-function:funcall-template-function tf 1.0 2.0)))
+      (template-function:remove-instantiation tf instantiation-1)
+      (signals error (template-function:funcall-template-function tf 1.0 2.0))
+
+      (is (= 3 (template-function:funcall-template-function tf 1 2)))
+      (template-function:remove-instantiation tf instantiation-2)
+      (signals error (template-function:funcall-template-function tf 1 2)))))

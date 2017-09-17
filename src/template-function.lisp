@@ -28,13 +28,39 @@
 ;; item must be an instance of instantiation.
 (defvar *processed*)
 
-(defstruct instantiation
-  template-function
-  argument-specification
-  name
-  lambda-form
-  function
-  function-type)
+(defgeneric instantiation-name (instantiation))
+(defgeneric instantiation-argument-specification (instantiation))
+(defgeneric instantiation-function-type (instantiation))
+(defgeneric instantiation-lambda-form (instantiation))
+(defgeneric instantiation-function (instantiation))
+(defgeneric instantiation-expand-function (instantiation))
+
+(defclass instantiation ()
+  ((%argument-specification :initarg :argument-specification
+                            :reader instantiation-argument-specification)
+   (%lambda-form :initarg :lambda-form
+                 :reader instantiation-lambda-form)
+   (%function-type :initarg :function-type
+                   :reader instantiation-function-type)
+   (%name :initarg :name
+          :reader instantiation-name)
+   (%function :initarg :function
+              :reader instantiation-function)
+
+   ;; This is here to help processing instantiations.
+   (%template-function :initarg :template-function
+                       :reader instantiation-template-function)))
+
+(defun make-instantiation (&key
+                             argument-specification lambda-form function-type
+                             name function template-function)
+  (make-instance 'instantiation
+                 :argument-specification argument-specification
+                 :lambda-form lambda-form
+                 :function-type function-type
+                 :name name
+                 :function function
+                 :template-function template-function))
 
 (defun processed-template-function-p (template-function argument-specification)
   (find-if #'(lambda (instantiation)
@@ -256,6 +282,11 @@
 
 (defgeneric ensure-instantiation (template-function argument-specification))
 (defgeneric ensure-instantiation* (template-function &rest argument-specification))
+
+(defgeneric instantiations (template-function))
+(defgeneric add-instantiation (template-function instantiation))
+(defgeneric remove-instantiation (template-function instantiation))
+
 (defgeneric find-instantiation (template-function argument-specification))
 (defgeneric find-instantiation* (template-function &rest argument-specification))
 
@@ -300,10 +331,13 @@
    (%argument-specification-parameters :initarg :argument-specification-parameters
                                        :reader argument-specification-parameters)
    (%inlinep :initarg :inline
-             :reader inlinep))
+             :reader inlinep)
+   (%instantiations :initarg :instantiations
+                    :reader instantiations))
   (:metaclass template-function-class)
   (:default-initargs
-   :inline nil))
+   :inline nil
+   :instantiations nil))
 
 (defmethod initialize-instance :after ((instance template-function) &key)
   ;; Initialise %store-parameters and %argument-specification-parameters)
@@ -464,6 +498,53 @@
 
 (defmethod complete-argument-specification* ((template-function template-function) &rest argument-specification)
   (complete-argument-specification template-function argument-specification))
+
+(defmethod add-instantiation ((template-function template-function) (instantiation instantiation))
+  (remove-instantiation template-function instantiation)
+
+  (let* ((lambda-form (instantiation-lambda-form instantiation))
+         (function-type (instantiation-function-type instantiation))
+         (name (instantiation-name instantiation))
+         (function (instantiation-function instantiation))
+         (argument-specification (instantiation-argument-specification instantiation))
+         (expand-function (if (inlinep template-function)
+                              (specialization-store:compiler-macro-lambda (&rest args)
+                                `(the ,(third function-type) (,lambda-form ,@args)))
+                              (specialization-store:compiler-macro-lambda (&rest args)
+                                `(the ,(third function-type) (,name ,@args)))))
+         (specialization-lambda-list (compute-specialization-lambda-list template-function
+                                                                         argument-specification))
+         (specialization (make-instance 'specialization-store:standard-specialization
+                                        :lambda-list specialization-lambda-list
+                                        :value-type (third function-type)
+                                        :name name
+                                        :function function
+                                        :expand-function expand-function)))
+    (specialization-store:add-specialization (store template-function) specialization)
+    (fmakunbound name)
+    (setf (fdefinition name) function)
+    (proclaim `(ftype ,function-type ,name)))
+
+  (push instantiation (slot-value template-function '%instantiations))
+  (values))
+
+(defmethod remove-instantiation ((template-function template-function) (instantiation instantiation))
+  (unless (find instantiation (instantiations template-function))
+    (return-from remove-instantiation))
+
+  (alexandria:removef (slot-value template-function '%instantiations)
+                      instantiation)
+
+  (let* ((argument-specification (complete-argument-specification template-function
+                                                                  (instantiation-argument-specification instantiation)))
+         (specialization-lambda-list (compute-specialization-lambda-list template-function argument-specification))
+         (specialization (find specialization-lambda-list
+                               (specialization-store:store-specializations (store template-function))
+                               :key #'specialization-store:specialization-lambda-list
+                               :test #'equalp)))
+    (unless specialization
+      (error "Instantiation ~A does not have a specialization." instantiation))
+    (specialization-store:remove-specialization (store template-function) specialization)))
 
 ;;;; Glue Layer (Template Function)
 
@@ -530,29 +611,14 @@
                       (wrapper-fn (compile nil `(lambda ()
                                                   ,named-lambda-form)))
                       (function (funcall wrapper-fn))
-                      (expand-function (if (inlinep template-function)
-                                           (specialization-store:compiler-macro-lambda (&rest args)
-                                             `(the ,(third function-type) (,lambda-form ,@args)))
-                                           (specialization-store:compiler-macro-lambda (&rest args)
-                                             `(the ,(third function-type) (,name ,@args)))))
-                      (specialization-lambda-list (compute-specialization-lambda-list template-function
-                                                                                      argument-specification))
-                      (specialization (make-instance 'specialization-store:standard-specialization
-                                                     :lambda-list specialization-lambda-list
-                                                     :value-type (third function-type)
-                                                     :name name
-                                                     :function function
-                                                     :expand-function expand-function)))
-                 (specialization-store:add-specialization (store template-function) specialization)
-                 (fmakunbound name)
-                 (setf (fdefinition name) function)
-                 (proclaim `(ftype ,function-type ,name))
-                 (make-instantiation :template-function template-function
-                                     :argument-specification argument-specification
-                                     :name name
-                                     :lambda-form lambda-form
-                                     :function-type function-type
-                                     :function function)))))
+                      (instantiation (make-instantiation :template-function template-function
+                                                         :argument-specification argument-specification
+                                                         :name name
+                                                         :lambda-form lambda-form
+                                                         :function-type function-type
+                                                         :function function)))
+                 (add-instantiation template-function instantiation)
+                 instantiation))))
     (let* ((*instantiating* t)
            (*records* (loop
                         for (template-function argument-specification) in requests
@@ -585,22 +651,15 @@
   (%ensure-instantiation template-function argument-specification)
   (values))
 
-(defun %install-instantiation (template-function-name argument-specification function)
+(defun %install-instantiation (template-function-name argument-specification lambda-form function-type name function)
   (let* ((template-function (find-template-function template-function-name))
-         (name (compute-name template-function argument-specification))
-         (function-type (compute-function-type template-function argument-specification))
-         (specialization-lambda-list (compute-specialization-lambda-list template-function argument-specification))
-         (expand-function (specialization-store:compiler-macro-lambda (&rest args)
-                            `(the ,(third function-type) (,name ,@args))))
-         (specialization (make-instance 'specialization-store:standard-specialization
-                                        :name name
-                                        :lambda-list specialization-lambda-list
-                                        :function function
-                                        :expand-function expand-function
-                                        :value-type (third function-type))))
-    (specialization-store:add-specialization (store template-function) specialization)
-    (setf (fdefinition name) function)
-    (proclaim `(ftype ,function-type ,name)))
+         (instantiation (make-instantiation :argument-specification argument-specification
+                                            :lambda-form lambda-form
+                                            :function-type function-type
+                                            :name name
+                                            :function function
+                                            :template-function template-function)))
+    (add-instantiation template-function instantiation))
   (values))
 
 
@@ -685,9 +744,11 @@
            for template-function-name = (name (instantiation-template-function instantiation))
            for name = (instantiation-name instantiation)
            for lambda-form = (instantiation-lambda-form instantiation)
+           for function-type = (instantiation-function-type instantiation)
            for argument-specification = (instantiation-argument-specification instantiation)
            collect
            `(%install-instantiation ',template-function-name ',argument-specification
+                                    ',lambda-form ',function-type ',name
                                     (alexandria:named-lambda ,name ,@(rest lambda-form)))))))
 
 (defmacro require-instantiation (template-function-name argument-specification)
