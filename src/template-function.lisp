@@ -253,6 +253,57 @@
                   (list (first item) (second item)))
                  (t
                   (error "Invalid state")))))
+
+(defun parse-argument-specification (argspec)
+  (loop
+    with req = nil
+    with rest = nil
+    with restp = nil
+    with keys = nil
+    with keysp = nil
+    with subspec = argspec
+    for item = (car subspec)
+    while subspec
+    do
+       (cond ((eql '&optional item)
+              (error "Invalid argument specification ~A." argspec))
+             ((eql '&rest item)
+              (assert (not restp) nil "Duplicate rest constituent in argument specification ~A." argspec)
+              (assert (cdr subspec) nil "No rest type specified in argument specification ~A." argspec)
+              (setf rest (second subspec)
+                    restp t)
+              (pop subspec))
+             ((eql '&key item)
+              (assert (not keysp) nil "Duplicate &key found in argument specification ~A." argspec)
+              (assert (not restp) nil "Cannot specify &rest and &key simultaneously in argument specification ~A." argspec)
+              (setf keysp t)
+              (pop subspec))
+             (keysp
+              (assert (and (listp item) (= 2 (length item)))
+                      nil
+                      "Invalid keyword constituent in argument specification ~A." argspec)
+              (push item keys)
+              (pop subspec))
+             (t
+              (push item req)
+              (pop subspec)))
+    finally
+       (return (list (nreverse req)
+                     rest
+                     (nreverse keys)))))
+
+(defun argument-specification-equal (argspec-a argspec-b)
+  (flet ((keys-equal (a b)
+           (destructuring-bind (key-a type-a) a
+             (destructuring-bind (key-b type-b) b
+               (and (eql key-a key-b)
+                    (alexandria:type= type-a type-b))))))
+    (destructuring-bind (req-a rest-a keys-a) (parse-argument-specification argspec-a)
+      (destructuring-bind (req-b rest-b keys-b) (parse-argument-specification argspec-b)
+        (and (= (length req-a) (length req-b))
+             (every #'alexandria:type= req-a req-b)
+             (alexandria:type= rest-a rest-b)
+             (alexandria:set-equal keys-a keys-b :test #'keys-equal))))))
 
 ;;;; Object Layer
 
@@ -530,11 +581,10 @@
   (values))
 
 (defmethod remove-instantiation ((template-function template-function) (instantiation instantiation))
-  (unless (find instantiation (instantiations template-function))
-    (return-from remove-instantiation))
-
   (alexandria:removef (slot-value template-function '%instantiations)
-                      instantiation)
+                      (instantiation-argument-specification instantiation)
+                      :test #'argument-specification-equal
+                      :key #'instantiation-argument-specification)
 
   (let* ((argument-specification (complete-argument-specification template-function
                                                                   (instantiation-argument-specification instantiation)))
@@ -543,9 +593,8 @@
                                (specialization-store:store-specializations (store template-function))
                                :key #'specialization-store:specialization-lambda-list
                                :test #'equalp)))
-    (unless specialization
-      (error "Instantiation ~A does not have a specialization." instantiation))
-    (specialization-store:remove-specialization (store template-function) specialization)))
+    (when specialization
+      (specialization-store:remove-specialization (store template-function) specialization))))
 
 ;;;; Glue Layer (Template Function)
 
