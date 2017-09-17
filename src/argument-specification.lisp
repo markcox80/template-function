@@ -698,5 +698,3 @@
   `(funcall (argument-specification-lambda ,lambda-list
               ,@body)
             ,argument-specification))
-
-;;;; destructure-argument-specification
