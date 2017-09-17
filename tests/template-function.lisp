@@ -190,6 +190,11 @@
     (template-function:add-instantiation tf instantiation-1)
     (is (equal (list instantiation-1) (template-function:instantiations tf)))
 
+    ;; Ensure there is no duplicate entry for a different instance.
+    (let* ((instantiation-2 (first (template-function:ensure-instantiation tf '(number number)))))
+      (is (equal (list instantiation-2) (template-function:instantiations tf))))
+
+    ;; Add a created instantiation.
     (let* ((instantiation-2 (make-instance 'template-function:instantiation
                                            :name 'example/integer-integer
                                            :function (lambda (x y)
