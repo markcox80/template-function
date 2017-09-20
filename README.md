@@ -59,5 +59,6 @@ can be executed by evaluating the following forms
 
 # Documentation
 
-Documentation and tutorials for this project are provided in the
-project wiki.
+Documentation and tutorials for this project are provided in
+the
+[project wiki](https://github.com/markcox80/template-function/wiki).
