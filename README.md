@@ -26,6 +26,10 @@ protocol consisting of object, glue and syntax layers.
 Users should be aware that the interface provided by the template
 function system is subject to change.
 
+Documentation and tutorials for this project are provided in
+the
+[project wiki](https://github.com/markcox80/template-function/wiki).
+
 # Installation
 
 The template function system has the following dependencies:
@@ -56,9 +60,3 @@ can be executed by evaluating the following forms
 (asdf:test-system "specialization-store")
 (asdf:test-system "template-function")
 ```
-
-# Documentation
-
-Documentation and tutorials for this project are provided in
-the
-[project wiki](https://github.com/markcox80/template-function/wiki).
