@@ -221,14 +221,14 @@
     (template-function:require-instantiation example (real)))
 
   (defun foo (a)
-    (example a))
+    (example (the real a)))
 
   (compile 'foo)
   (fmakunbound 'example)
 
   (test foo
-    (is (= 2 (example 1)))
-    (is (= 3 (example 2)))))
+    (is (= 2 (foo 1)))
+    (is (= 3 (foo 2)))))
 
 (syntax-layer-test inlining/optional
   (eval-when (:compile-toplevel :load-toplevel :execute)
