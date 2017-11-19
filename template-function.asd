@@ -3,6 +3,7 @@
   :description "A system for generating functions from a template."
   :depends-on ("specialization-store" "introspect-environment" "alexandria")
   :license "Simplified BSD License variant"
+  :version "0.0.1"
   :serial t
   :components ((:module "src"
                 :serial t
